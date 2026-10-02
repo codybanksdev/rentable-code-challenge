@@ -5,10 +5,10 @@ from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from api.models import Tenant, Transaction
+from api.models import Label, Tenant, Transaction
 from api.serializers import (
-    LedgerSerializer, MonthlyActivitySerializer, TenantSerializer,
-    TransactionCreateSerializer, TransactionSerializer,
+    LabelSerializer, LedgerSerializer, MonthlyActivitySerializer, TenantLabelsSerializer,
+    TenantSerializer, TransactionSerializer,
 )
 from api.services.ledger import build_ledger
 from api.services.ledger_csv import write_ledger_csv
@@ -28,7 +28,7 @@ def tenant_list(request):
     """
     Returns a list of all tenants with their current balance.
     """
-    tenants = Tenant.objects.with_balance().order_by('name', 'id')
+    tenants = Tenant.objects.with_balance().prefetch_related('labels').order_by('name', 'id')
     serializer = TenantSerializer(tenants, many=True)
     return Response(serializer.data)
 
@@ -71,18 +71,6 @@ def tenant_ledger_csv(request, tenant_id):
     write_ledger_csv(ledger, response)
     return response
 
-@api_view(['POST'])
-def tenant_transactions(request, tenant_id):
-    """
-    Records a transaction on a tenant's ledger. It has no PMS id, so imports
-    leave it alone.
-    """
-    tenant = get_object_or_404(Tenant, pk=tenant_id)
-    serializer = TransactionCreateSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    transaction = serializer.save(tenant=tenant)
-    return Response(TransactionSerializer(transaction).data, status=201)
-
 @api_view(['GET'])
 def transaction_list(request):
     """
@@ -104,3 +92,26 @@ def monthly_activity_report(request):
     """
     serializer = MonthlyActivitySerializer(monthly_activity(), many=True)
     return Response(serializer.data)
+
+@api_view(['GET', 'POST'])
+def label_list(request):
+    """
+    Lists the labels that can be put on tenants, or creates a new one.
+    """
+    if request.method == 'POST':
+        serializer = LabelSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=201)
+    return Response(LabelSerializer(Label.objects.all(), many=True).data)
+
+@api_view(['PUT'])
+def tenant_labels(request, tenant_id):
+    """
+    Replaces a tenant's labels with the given set and returns the new set.
+    """
+    tenant = get_object_or_404(Tenant, pk=tenant_id)
+    serializer = TenantLabelsSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    tenant.labels.set(serializer.validated_data['label_ids'])
+    return Response(LabelSerializer(tenant.labels.all(), many=True).data)

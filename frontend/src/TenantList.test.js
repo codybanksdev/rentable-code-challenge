@@ -204,13 +204,6 @@ test('a failed ledger request shows an error', async () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Error loading ledger: HTTP error! status: 500');
 });
 
-function mockFetch(handler) {
-    jest.spyOn(global, 'fetch').mockImplementation((url, options) => {
-        const { status = 200, body } = handler(url, options);
-        return Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(body) });
-    });
-}
-
 async function openDaisy() {
     render(<TenantList />);
     userEvent.click(await screen.findByRole('button', { name: 'View ledger for Daisy Ridley' }));
@@ -267,52 +260,6 @@ test('entries removed from the PMS are listed apart from the ledger', async () =
     expect(await within(dialog).findByText('Removed from the PMS (1)')).toBeInTheDocument();
     expect(within(dialog).getByText('Late Fee Charge')).toBeInTheDocument();
     expect(within(dialog).getByText('Balance due').nextSibling).toHaveTextContent('$1,420.00');
-});
-
-test('adding a transaction posts it and reloads the ledger', async () => {
-    const added = { id: 5, pms_id: null, date: '2023-01-08', description: 'Courtesy credit', type: 'charge', amount: '-20.00', running_balance: '1400.00' };
-    let posted = null;
-    mockFetch((url, options) => {
-        if (url === '/api/tenants/') return { body: tenants };
-        if (options && options.method === 'POST') {
-            posted = { url, body: JSON.parse(options.body) };
-            return { status: 201, body: added };
-        }
-        return { body: posted ? makeLedger(tenants[0], { ...ledger, balance: '1400.00', entries: [...ledger.entries, added] }) : ledger };
-    });
-    const dialog = await openDaisy();
-    await within(dialog).findByText('Total charges');
-
-    fireEvent.change(within(dialog).getByLabelText('Date'), { target: { value: '2023-01-08' } });
-    fireEvent.change(within(dialog).getByLabelText('Description'), { target: { value: 'Courtesy credit' } });
-    fireEvent.change(within(dialog).getByLabelText('Amount'), { target: { value: '-20.00' } });
-    userEvent.click(within(dialog).getByRole('button', { name: 'Add transaction' }));
-
-    const row = (await within(dialog).findByText('Courtesy credit')).closest('tr');
-    expect(posted).toEqual({
-        url: '/api/tenants/11/transactions/',
-        body: { date: '2023-01-08', description: 'Courtesy credit', type: 'charge', amount: '-20.00' },
-    });
-    // An entry with no PMS id is marked so nobody looks for it in the PMS.
-    expect(within(row).getByText('Local')).toBeInTheDocument();
-    expect(within(dialog).getByText('Balance due').nextSibling).toHaveTextContent('$1,400.00');
-});
-
-test('a rejected transaction shows the server\'s reason', async () => {
-    mockFetch((url, options) => {
-        if (url === '/api/tenants/') return { body: tenants };
-        if (options && options.method === 'POST') return { status: 400, body: { amount: ['Amount cannot be zero.'] } };
-        return { body: ledger };
-    });
-    const dialog = await openDaisy();
-    await within(dialog).findByText('Total charges');
-
-    fireEvent.change(within(dialog).getByLabelText('Date'), { target: { value: '2023-01-08' } });
-    fireEvent.change(within(dialog).getByLabelText('Description'), { target: { value: 'Nothing' } });
-    fireEvent.change(within(dialog).getByLabelText('Amount'), { target: { value: '0' } });
-    userEvent.click(within(dialog).getByRole('button', { name: 'Add transaction' }));
-
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Could not add the transaction. amount: Amount cannot be zero.');
 });
 
 test('focus moves into the ledger on open and back to the button on close', async () => {

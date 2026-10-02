@@ -27,14 +27,18 @@ flowchart TD
     J -- no --> M[Create a new tenant] --> L
     L --> N{Every ledger entry valid?<br/>known type, ISO date,<br/>whole cents, unique id}
     N -- no --> O[Roll back this tenant] --> R
-    N -- yes --> P["Sync by (tenant, pms_id):<br/>create new, update changed,<br/>delete entries the PMS no longer has"]
-    P --> Q[Commit]
+    N -- yes --> P["Sync by (tenant, pms_id):<br/>create new, update changed,<br/>mark entries the PMS no longer has as removed"]
+    P --> P2[Stamp ledger_synced_at]
+    P2 --> Q[Commit]
     Q --> F
     R --> F
     F -- done --> S{Any errors?}
     S -- yes --> X2[Print summary and errors,<br/>exit non-zero]
     S -- no --> T[Print summary, exit 0]
 ```
+
+With `--dry-run` the same steps run inside one outer database transaction
+that is rolled back at the end, so the counts are real and nothing is written.
 
 Code: `backend/api/management/commands/import_transactions.py` is the thin
 command; the rules live in `backend/api/services/pms_import.py`.
@@ -52,16 +56,24 @@ sequenceDiagram
     R->>D: GET /api/tenants/
     D->>DB: Tenants annotated with balance<br/>(one query, Tenant.objects.with_balance)
     DB-->>D: rows
-    D-->>R: [{id, pms_tenant_id, name, unit, balance}]
-    R-->>U: Tenant table: sort by any column,<br/>filter by unit prefix and balance range
+    D-->>R: [{id, pms_tenant_id, name, unit, balance,<br/>ledger_synced_at, labels}]
+    R-->>U: Tenant table: sort by any column, filter by<br/>unit prefix, label and balance range
 
     U->>R: Click View Ledger
-    R->>D: GET /api/tenants/{id}/ledger/
+    R->>D: GET /api/tenants/{id}/ledger/?start=&end=
     D->>DB: That tenant's transactions
     DB-->>D: rows
-    Note over D: build_ledger: sort by date then PMS id,<br/>accumulate the running balance in Decimal
-    D-->>R: {tenant, total_charges, total_payments,<br/>balance, entries[...running_balance]}
-    R-->>U: Ledger dialog: Date, Description,<br/>Charge, Payment, Balance
+    Note over D: build_ledger: sort by date then PMS id, roll<br/>entries before start into an opening balance,<br/>accumulate the running balance in Decimal
+    D-->>R: {tenant, opening_balance, total_charges,<br/>total_payments, balance, entries, removed_entries}
+    R-->>U: Ledger dialog: totals, balance chart,<br/>Date, Description, Charge, Payment, Balance
+
+    U->>R: Export CSV
+    R->>D: GET /api/tenants/{id}/ledger.csv?start=&end=
+    D-->>R: The same ledger as a CSV file
+
+    U->>R: Edit labels
+    R->>D: PUT /api/tenants/{id}/labels/
+    D-->>R: The tenant's labels
 
     U->>R: Open the Insights tab
     R->>D: GET /api/tenants/ and<br/>GET /api/reports/monthly-activity/
@@ -72,18 +84,26 @@ sequenceDiagram
 Code: views in `backend/api/views.py`, balance rules in
 `backend/api/services/ledger.py` and `Tenant.objects.with_balance()` in
 `backend/api/models.py`, UI in `frontend/src/TenantList.js`,
-`frontend/src/TenantLedger.js` and `frontend/src/Insights.js`.
+`frontend/src/TenantLedger.js`, `frontend/src/LabelsTab.js` and
+`frontend/src/Insights.js`.
 
 ## Data model
 
 ```mermaid
 erDiagram
     TENANT ||--o{ TRANSACTION : has
+    TENANT }o--o{ LABEL : "tagged with"
     TENANT {
         bigint id PK "local id, never compared to PMS ids"
         int pms_tenant_id UK "PMS tenant_id, null if unlinked"
         string name
         string unit
+        datetime ledger_synced_at "last successful sync, null if never"
+    }
+    LABEL {
+        bigint id PK
+        string name UK "local only, never imported"
+        string color "chip colour, #rrggbb"
     }
     TRANSACTION {
         bigint id PK "local id"
@@ -93,6 +113,7 @@ erDiagram
         string description
         string type "charge or payment"
         decimal amount "as the PMS sends it, sign included"
+        datetime removed_from_pms_at "set when the PMS drops it"
     }
 ```
 
@@ -119,4 +140,5 @@ Amounts keep the sign the PMS sends, and the type decides the direction:
 
 A positive balance is shown as "Balance due", a negative one as "Credit
 balance", zero as "Paid in full". A tenant with no transactions at all is
-shown as "no activity" rather than "Paid in full".
+shown as "no activity" rather than "Paid in full". Entries marked as removed
+from the PMS are left out of the balance.

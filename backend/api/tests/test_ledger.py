@@ -226,36 +226,3 @@ def test_ledger_csv_matches_the_ledger():
         # A description that looks like a formula is exported as text.
         ['2023-02-01', "'=SUM(A1:A9)", 'charge', '-80.00', '', '420.00', '3'],
     ]
-
-
-def test_posting_a_transaction_adds_it_to_the_ledger_and_the_balance():
-    tenant = Tenant.objects.create(name='Alice')
-    add(tenant, '1', '2023-01-01', 'charge', '1500.00')
-    client = APIClient()
-
-    response = client.post(
-        f'/api/tenants/{tenant.id}/transactions/',
-        {'date': '2023-01-01', 'description': 'Courtesy credit', 'type': 'charge', 'amount': '-25.50'},
-        format='json',
-    )
-
-    assert response.status_code == 201
-    assert response.json()['pms_id'] is None
-    body = client.get(f'/api/tenants/{tenant.id}/ledger/').json()
-    # On a shared date, the local entry follows the PMS entry.
-    assert [(e['description'], e['running_balance']) for e in body['entries']] == [
-        ('entry', '1500.00'), ('Courtesy credit', '1474.50'),
-    ]
-    assert body['balance'] == '1474.50'
-
-
-def test_posting_an_invalid_transaction_is_rejected_and_writes_nothing():
-    tenant = Tenant.objects.create(name='Alice')
-    client = APIClient()
-    url = f'/api/tenants/{tenant.id}/transactions/'
-    valid = {'date': '2023-01-01', 'description': 'Fee', 'type': 'charge', 'amount': '10.00'}
-
-    for field, bad in [('type', 'refund'), ('amount', '10.005'), ('amount', '0'), ('date', 'yesterday'), ('description', '')]:
-        assert client.post(url, {**valid, field: bad}, format='json').status_code == 400, (field, bad)
-    assert client.post('/api/tenants/999/transactions/', valid, format='json').status_code == 404
-    assert Transaction.objects.count() == 0

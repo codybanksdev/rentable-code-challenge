@@ -21,7 +21,7 @@ module.exports = defineConfig({
     // writes runs afterwards, so it cannot change what the others assert.
     projects: [
         { name: 'read', testMatch: 'ledger.spec.js' },
-        { name: 'write', testMatch: 'add-transaction.spec.js', dependencies: ['read'] },
+        { name: 'write', testMatch: 'labels.spec.js', dependencies: ['read'] },
     ],
     // The frontend's dev proxy is fixed to port 8009, so the suite uses the
     // same ports as ./start.sh and refuses to run against servers it did not

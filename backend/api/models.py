@@ -1,3 +1,4 @@
+from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import Case, DecimalField, F, Q, Sum, When
 
@@ -30,6 +31,26 @@ class TenantQuerySet(models.QuerySet):
         )
 
 
+class Label(models.Model):
+    """A tag the accounting team puts on tenants, such as "At risk".
+
+    Labels belong to this application. The PMS knows nothing about them and
+    an import never changes them.
+    """
+    name = models.CharField(max_length=40, unique=True)
+    # Background colour of the label's chip, as #rrggbb.
+    color = models.CharField(
+        max_length=7,
+        validators=[RegexValidator(r'^#[0-9a-fA-F]{6}$', 'Use a colour in the form #rrggbb.')],
+    )
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Tenant(models.Model):
     # The tenant's identifier in the PMS. Local ids are assigned by this
     # database and are unrelated to it, so the two must never be compared.
@@ -40,6 +61,7 @@ class Tenant(models.Model):
     # When this tenant's ledger was last brought in line with the PMS. Null if
     # it never has been.
     ledger_synced_at = models.DateTimeField(null=True, blank=True)
+    labels = models.ManyToManyField(Label, related_name='tenants', blank=True)
 
     objects = TenantQuerySet.as_manager()
 
@@ -53,10 +75,8 @@ class Transaction(models.Model):
         PAYMENT = 'payment', 'Payment'
 
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='transactions')
-    # The transaction's identifier in the PMS (a string in the API). Null for
-    # an entry recorded here rather than imported; the import never touches
-    # those.
-    pms_id = models.CharField(max_length=64, null=True, blank=True)
+    # The transaction's identifier in the PMS (a string in the API).
+    pms_id = models.CharField(max_length=64)
     date = models.DateField()
     description = models.CharField(max_length=255)
     type = models.CharField(max_length=16, choices=Type.choices)

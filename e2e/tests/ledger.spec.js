@@ -37,8 +37,8 @@ test('the tenant list shows every tenant with a balance', async ({ page }) => {
     await expect(rowFor(page, 'Bob The Builder')).toContainText('B205');
     // The first column is the PMS id. Charlie has no PMS record, so he has
     // neither an id nor a balance, rather than a misleading $0.00.
-    await expect(rowFor(page, 'Daisy Ridley').locator('td')).toHaveText(['3', 'Daisy Ridley', 'C303', '$1,240.00', 'View Ledger']);
-    await expect(rowFor(page, 'Charlie Chaplin').locator('td')).toHaveText(['—', 'Charlie Chaplin', 'C303', '—', 'View Ledger']);
+    await expect(rowFor(page, 'Daisy Ridley').locator('td')).toHaveText(['3', 'Daisy Ridley', 'C303', '$1,240.00', 'Edit', 'View Ledger']);
+    await expect(rowFor(page, 'Charlie Chaplin').locator('td')).toHaveText(['—', 'Charlie Chaplin', 'C303', '—', 'Edit', 'View Ledger']);
     await expect(page.getByText(/^Ledgers last synced from the PMS: /)).toBeVisible();
 });
 

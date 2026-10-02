@@ -3,6 +3,8 @@
 See api/integration-data/PMS_API_SPEC.md for the upstream contract.
 """
 import json
+import logging
+import time
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -19,6 +21,8 @@ PMS_TENANTS_URL = (
 )
 REQUEST_TIMEOUT_SECONDS = 30
 CENT = Decimal('0.01')
+
+logger = logging.getLogger(__name__)
 TRANSACTION_FIELDS = ['date', 'description', 'type', 'amount']
 
 
@@ -44,6 +48,7 @@ class ImportResult:
 
 def fetch_tenants_with_ledgers():
     # Without includeLedgers the API returns tenants with no `ledger` key.
+    started = time.monotonic()
     try:
         response = requests.get(
             PMS_TENANTS_URL,
@@ -53,7 +58,16 @@ def fetch_tenants_with_ledgers():
         response.raise_for_status()
         payload = response.json()
     except (requests.exceptions.RequestException, ValueError) as exc:
+        logger.error('pms.fetch.failed', extra={
+            'error': type(exc).__name__,
+            'duration_ms': round((time.monotonic() - started) * 1000),
+        })
         raise PMSImportError(f'Error fetching data from integration API: {exc}') from exc
+    logger.info('pms.fetch.succeeded', extra={
+        'status': response.status_code,
+        'bytes': len(response.content),
+        'duration_ms': round((time.monotonic() - started) * 1000),
+    })
     return _require_tenant_list(payload)
 
 
@@ -116,6 +130,9 @@ def _resolve_tenant(tenant_data, result):
             tenant = unlinked[0]
             tenant.pms_tenant_id = pms_tenant_id
             result.tenants_linked += 1
+            logger.info('pms.import.tenant_linked_by_name', extra={
+                'tenant_id': tenant.pk, 'pms_tenant_id': pms_tenant_id,
+            })
         else:
             tenant = Tenant(pms_tenant_id=pms_tenant_id)
             result.tenants_created += 1
@@ -132,8 +149,7 @@ def _sync_ledger(tenant, ledger, result, synced_at):
     if len(set(pms_ids)) != len(pms_ids):
         raise InvalidLedgerEntry('duplicate transaction id in ledger')
 
-    # Entries recorded locally (no pms_id) are not the PMS's to change.
-    existing = {t.pms_id: t for t in tenant.transactions.filter(pms_id__isnull=False)}
+    existing = {t.pms_id: t for t in tenant.transactions.all()}
     to_create, to_update = [], []
     for values in parsed:
         current = existing.pop(values['pms_id'], None)
@@ -172,10 +188,23 @@ def import_tenants(tenants_data, dry_run=False):
 
     With `dry_run`, everything runs and is counted, then rolled back.
     """
+    started = time.monotonic()
     with db_transaction.atomic():
         result = _import_tenants(tenants_data)
         if dry_run:
             db_transaction.set_rollback(True)
+    logger.info('pms.import.finished', extra={
+        'dry_run': dry_run,
+        'tenants_in_payload': len(tenants_data),
+        'tenants_created': result.tenants_created,
+        'tenants_linked': result.tenants_linked,
+        'transactions_created': result.transactions_created,
+        'transactions_updated': result.transactions_updated,
+        'transactions_removed': result.transactions_removed,
+        'transactions_restored': result.transactions_restored,
+        'ledgers_skipped': len(result.errors),
+        'duration_ms': round((time.monotonic() - started) * 1000),
+    })
     return result
 
 
@@ -204,6 +233,9 @@ def _import_tenants(tenants_data):
                 tenant = _resolve_tenant(tenant_data, tenant_result)
                 _sync_ledger(tenant, ledger, tenant_result, synced_at)
         except InvalidLedgerEntry as exc:
+            logger.warning('pms.import.ledger_skipped', extra={
+                'pms_tenant_id': pms_tenant_id, 'reason': str(exc),
+            })
             result.errors.append(f'PMS tenant {pms_tenant_id}: {exc}. Ledger left unchanged.')
             continue
         # Only counted once the tenant's transaction has committed.

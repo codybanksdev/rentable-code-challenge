@@ -1,9 +1,25 @@
 from decimal import Decimal
 
 from rest_framework import serializers
-from api.models import Tenant, Transaction
+from api.models import Label, Tenant, Transaction
 
 CENT = Decimal('0.01')
+
+class LabelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Label
+        fields = ['id', 'name', 'color']
+
+    def validate_name(self, name):
+        name = name.strip()
+        # "at risk" and "At risk" are the same label to a person.
+        if Label.objects.filter(name__iexact=name).exists():
+            raise serializers.ValidationError('A label with this name already exists.')
+        return name
+
+class TenantLabelsSerializer(serializers.Serializer):
+    """The complete set of labels a tenant should have."""
+    label_ids = serializers.PrimaryKeyRelatedField(queryset=Label.objects.all(), many=True)
 
 class TenantSummarySerializer(serializers.ModelSerializer):
     class Meta:
@@ -12,9 +28,10 @@ class TenantSummarySerializer(serializers.ModelSerializer):
 
 class TenantSerializer(TenantSummarySerializer):
     balance = serializers.SerializerMethodField()
+    labels = LabelSerializer(many=True, read_only=True)
 
     class Meta(TenantSummarySerializer.Meta):
-        fields = TenantSummarySerializer.Meta.fields + ['balance']
+        fields = TenantSummarySerializer.Meta.fields + ['balance', 'labels']
 
     def get_balance(self, tenant):
         """The tenant's balance, or null when there is nothing to base one on.
@@ -32,21 +49,9 @@ class TransactionSerializer(serializers.ModelSerializer):
         model = Transaction
         fields = ['id', 'pms_id', 'tenant', 'date', 'description', 'type', 'amount', 'removed_from_pms_at']
 
-class TransactionCreateSerializer(serializers.ModelSerializer):
-    """A transaction recorded here rather than imported from the PMS."""
-
-    class Meta:
-        model = Transaction
-        fields = ['date', 'description', 'type', 'amount']
-
-    def validate_amount(self, amount):
-        if amount == 0:
-            raise serializers.ValidationError('Amount cannot be zero.')
-        return amount
-
 class LedgerEntrySerializer(serializers.Serializer):
     id = serializers.IntegerField(source='transaction.id')
-    pms_id = serializers.CharField(source='transaction.pms_id', allow_null=True)
+    pms_id = serializers.CharField(source='transaction.pms_id')
     date = serializers.DateField(source='transaction.date')
     description = serializers.CharField(source='transaction.description')
     type = serializers.CharField(source='transaction.type')

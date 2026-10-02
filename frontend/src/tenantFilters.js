@@ -8,7 +8,7 @@ export const COLUMNS = [
     { key: 'balance', label: 'Balance', numeric: true },
 ];
 
-export const NO_FILTERS = { unitPrefix: '', minBalance: '', maxBalance: '' };
+export const NO_FILTERS = { unitPrefix: '', labelId: '', minBalance: '', maxBalance: '' };
 
 // "A101" -> "A". Units with no leading letter have no prefix.
 export function unitPrefix(unit) {
@@ -28,11 +28,12 @@ function parseBound(value) {
     return Number.isFinite(number) ? number : null;
 }
 
-export function filterTenants(tenants, { unitPrefix: prefix, minBalance, maxBalance }) {
+export function filterTenants(tenants, { unitPrefix: prefix, labelId, minBalance, maxBalance }) {
     const min = parseBound(minBalance);
     const max = parseBound(maxBalance);
     return tenants.filter(tenant => {
         if (prefix && unitPrefix(tenant.unit) !== prefix) return false;
+        if (labelId && !(tenant.labels || []).some(label => String(label.id) === String(labelId))) return false;
         if (min === null && max === null) return true;
         // A tenant with no balance on file is in no balance range.
         if (tenant.balance === null) return false;

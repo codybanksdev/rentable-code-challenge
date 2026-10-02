@@ -130,4 +130,29 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3009",
-] 
+]
+
+# Application logs. LOG_FORMAT=json gives one JSON object per line for a log
+# pipeline; the default is a readable line for local work. LOG_LEVEL=WARNING
+# silences the per-request and per-import events.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'json': {'()': 'api.logging.JsonFormatter'},
+        'text': {'()': 'api.logging.KeyValueFormatter'},
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'json' if os.environ.get('LOG_FORMAT') == 'json' else 'text',
+        },
+    },
+    'loggers': {
+        'api': {
+            'handlers': ['console'],
+            'level': os.environ.get('LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+    },
+}

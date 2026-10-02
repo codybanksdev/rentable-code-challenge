@@ -81,7 +81,8 @@ import.
 
 **Now:** a 30 second timeout; fetch errors raise `CommandError` (non-zero
 exit); each tenant is written in its own database transaction; the command
-prints what it created, updated and removed.
+prints what it created, updated and removed. `--dry-run` reports the same
+counts and writes nothing.
 
 ### 7. Smaller things
 
@@ -158,17 +159,19 @@ seed is the only source of pre-existing tenants. The name match is kept
 because it also covers a database that already has tenants in it. It never
 guesses between two candidates.
 
-### An import removes transactions the PMS no longer has
+### Transactions the PMS no longer has are marked removed, not deleted
 
 The local table is a copy of the PMS. If the PMS voids an entry and the copy
-keeps it, the balance on screen can never reconcile with the PMS. The command
-prints how many were removed.
+keeps counting it, the balance on screen can never reconcile with the PMS. So
+an entry that disappears stops counting toward the balance. The row is kept,
+stamped with `removed_from_pms_at`, and listed under "Removed from the PMS"
+in the ledger, so there is a record of why a balance changed. If the entry
+comes back, the stamp is cleared.
 
-*Not taken:* never deleting (the balance drifts); marking entries as removed
-and keeping them for audit. The second is the right next step if this
-database becomes more than a mirror, because a deletion leaves no record of
-why yesterday's balance changed. It is not built because the PMS does not
-say whether entries can disappear at all.
+*Not taken:* never removing (the balance drifts); deleting the row. Deleting
+was the first implementation. An independent review pointed out that it
+destroys the evidence an accountant would need to explain a change between
+two days, and that costs one nullable column to fix.
 
 ### One bad entry holds back that tenant's whole ledger
 
@@ -194,6 +197,65 @@ tests and the end-to-end suite use
 `backend/api/tests/fixtures/pms_tenants_sample.json`, which is PMS tenants 1
 to 5 exactly as the API returned them, so they run without the network and
 assert against real data.
+
+### A tenant with nothing on file has no balance
+
+A tenant with no PMS record and no transactions is returned with
+`balance: null` and shown as a dash. `$0.00` would say the account is
+settled, which nobody knows. For the same reason an empty ledger is labelled
+"no activity" instead of "Paid in full".
+
+### The tenant list shows the PMS id
+
+The first column is the PMS tenant id, not the local database id. It is the
+number an accountant can look up in the PMS.
+
+### Each ledger records when it was synced
+
+`Tenant.ledger_synced_at` is set when that tenant's ledger is brought in line
+with the PMS. A tenant whose ledger was rejected keeps its old time, so the
+screen never claims a stale ledger is fresh.
+
+### A date range carries an opening balance
+
+`GET /api/tenants/<id>/ledger/?start=&end=` limits the ledger to a period.
+Entries before `start` are rolled into an opening balance row, and the running
+balance continues from it, so each row still shows the tenant's real balance
+on that day. Entries after `end` are left out, which makes the balance the
+balance as of `end`. The totals are for the period.
+
+*Not taken:* a running balance that restarts at zero for the visible rows. It
+is simpler and wrong: it would not match what the tenant owed on any day.
+
+### CSV export is fetched, not linked
+
+The export button fetches `/api/tenants/<id>/ledger.csv` and hands the file
+to the browser. A plain link does not work under the dev server, whose proxy
+answers a link click with the app's own HTML. The export covers the same
+period that is on screen. A description that begins with `=`, `+`, `-` or `@`
+is prefixed with an apostrophe so a spreadsheet does not run it as a formula.
+
+### Labels are local, with three defaults
+
+The accounting team can label tenants. "At risk" (red), "Requires follow up"
+(orange) and "Defaulting" (black) are created by a migration; more can be
+added in the app with any colour. Chip text is black or white by the colour's
+luminance, so a custom colour cannot be unreadable. Labels live only in this
+database and an import never touches them.
+
+Label names are unique ignoring case, so "at risk" cannot be added beside
+"At risk".
+
+### Structured logs, without a logging library
+
+The import and the PMS fetch log named events with fields
+(`pms.import.finished transactions_created=12 ...`). `LOG_FORMAT=json` prints
+each as one JSON object for a log pipeline. This is the standard library's
+`logging` with a 20-line formatter in `backend/api/logging.py`.
+
+*Not taken:* OpenTelemetry tracing. There is one outbound call and one
+database; the durations that matter are already fields on the log events.
+It becomes worth it when a second service needs correlating.
 
 ### The ledger opens as a dialog, and stays in date order
 
@@ -222,6 +284,10 @@ another.
 
 - Backend: pytest with pytest-django (`cd backend && pytest`). They are in
   `requirements.txt` because that is the one file the dev container installs.
+  Versions are pinned: unpinned, Python 3.12 and later would install Django 6
+  while the dev container (Python 3.11) installs Django 5.2.
+- CI (`.github/workflows/ci.yml`) runs all three suites and the frontend
+  build on every push.
 - Frontend: React Testing Library, already in the template
   (`cd frontend && npm test`).
 - End to end: Playwright in `e2e/`, against its own database loaded from the
@@ -232,17 +298,19 @@ another.
 - **Authentication and per-customer scoping.** The template has none; a real
   ledger needs both before it is exposed.
 - **Pagination.** 200 tenants and at most 51 entries per ledger.
-- **A "last synced" time.** Worth adding with scheduled imports, so a reader
-  knows how fresh the ledger is.
-- **CSV export, date-range filter, as-of balance.** Natural next steps for
-  reconciliation; see the questions below.
+- **Scheduled imports.** The import is safe to run on a schedule, and each
+  ledger shows when it was synced, but nothing schedules it.
+- **Recording transactions here.** Built and tested, then taken out: see
+  `docs/opportunities.md`.
+
+Ideas for where this could go next are in `docs/opportunities.md`.
 
 ## Questions for the customer and the PMS owner
 
 | Question | Assumed for now |
 |---|---|
 | Is the ledger the complete history, starting from a zero balance? | Yes |
-| Can entries be edited or removed in the PMS? | Yes; the import mirrors whatever the PMS returns |
+| Can entries be edited or removed in the PMS? | Yes; edits are applied and removals are marked, not deleted |
 | Are transaction ids unique across tenants or only within one? | Only within a tenant (the stricter assumption) |
 | Should security deposits count toward the balance? | Yes, as the PMS presents them |
 | When two entries share a date, is the PMS's order meaningful? | Yes; date then id reproduces it |

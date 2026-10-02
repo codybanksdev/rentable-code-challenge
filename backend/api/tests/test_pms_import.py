@@ -1,3 +1,5 @@
+import json
+import logging
 from decimal import Decimal
 from pathlib import Path
 
@@ -6,6 +8,7 @@ import requests
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
+from api.logging import JsonFormatter
 from api.models import Tenant, Transaction
 from api.services import pms_import
 from api.services.ledger import build_ledger
@@ -113,21 +116,6 @@ def test_entry_gone_from_the_pms_is_kept_but_stops_counting_and_can_come_back():
     assert build_ledger(tenant).balance == Decimal('1550.00')
 
 
-def test_import_leaves_locally_recorded_transactions_alone():
-    import_tenants([pms_tenant(1, 'Alice', [entry('1')])])
-    tenant = Tenant.objects.get(pms_tenant_id=1)
-    local = Transaction.objects.create(
-        tenant=tenant, pms_id=None, date='2023-01-02', type='charge',
-        amount=Decimal('-25.00'), description='Courtesy credit',
-    )
-
-    result = import_tenants([pms_tenant(1, 'Alice', [entry('1')])])
-
-    local.refresh_from_db()
-    assert local.removed_from_pms_at is None
-    assert counts(result) == (0, 0, 0, 0)
-
-
 def test_import_records_when_each_ledger_was_synced():
     result = import_tenants([
         pms_tenant(1, 'Alice', [entry('1')]),
@@ -189,6 +177,9 @@ def test_missing_ledger_key_does_not_wipe_existing_transactions():
 
 
 class FakeResponse:
+    status_code = 200
+    content = b'[]'
+
     def __init__(self, payload):
         self.payload = payload
 
@@ -261,3 +252,35 @@ def test_real_pms_sample_imports_to_the_hand_checked_balances():
 def test_source_file_that_cannot_be_read_fails_the_command(tmp_path):
     with pytest.raises(CommandError, match='Error reading'):
         call_command('import_transactions', source=str(tmp_path / 'missing.json'))
+
+
+def test_import_logs_a_summary_event_and_each_skipped_ledger(caplog):
+    caplog.set_level(logging.INFO, logger='api')
+    logging.getLogger('api').propagate = True
+    try:
+        import_tenants([
+            pms_tenant(1, 'Alice', [entry('1')]),
+            pms_tenant(2, 'Bob', [entry('1', type='refund')]),
+        ])
+    finally:
+        logging.getLogger('api').propagate = False
+
+    events = {record.getMessage(): record for record in caplog.records}
+    assert events['pms.import.ledger_skipped'].pms_tenant_id == 2
+    summary = events['pms.import.finished']
+    assert (summary.transactions_created, summary.ledgers_skipped, summary.dry_run) == (1, 1, False)
+
+
+def test_json_formatter_writes_the_event_and_its_fields_as_one_object():
+    record = logging.makeLogRecord({
+        'name': 'api.services.pms_import', 'levelname': 'INFO',
+        'msg': 'pms.import.finished', 'transactions_created': 12,
+    })
+
+    line = json.loads(JsonFormatter().format(record))
+
+    assert line['event'] == 'pms.import.finished'
+    assert line['level'] == 'INFO'
+    assert line['logger'] == 'api.services.pms_import'
+    assert line['transactions_created'] == 12
+    assert 'timestamp' in line

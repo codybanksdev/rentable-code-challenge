@@ -32,11 +32,9 @@ class Ledger:
 
 
 def _sort_key(transaction):
-    # Date first. Within a date, PMS entries in PMS id order -- numeric ids
-    # numerically ("9" before "10") -- then entries recorded locally.
+    # Date first, then PMS id. PMS ids are numeric strings today; sort those
+    # numerically ("9" before "10") and fall back to text if that changes.
     pms_id = transaction.pms_id
-    if pms_id is None:
-        return (transaction.date, 2, transaction.pk, '')
     if pms_id.isdigit():
         return (transaction.date, 0, int(pms_id), '')
     return (transaction.date, 1, 0, pms_id)

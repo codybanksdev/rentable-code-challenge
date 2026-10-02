@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import AddTransactionForm from './AddTransactionForm';
 import BalanceChart from './BalanceChart';
 import { downloadFile } from './download';
 import { formatDate, formatDateTime, formatMoney } from './format';
@@ -32,8 +31,6 @@ function TenantLedger({ tenant, onClose }) {
     const [ledger, setLedger] = useState(null);
     const [error, setError] = useState(null);
     const [range, setRange] = useState({ start: '', end: '' });
-    // Bumped to refetch after a transaction is added.
-    const [version, setVersion] = useState(0);
     const headingRef = useRef(null);
     const query = rangeQuery(range);
 
@@ -59,7 +56,7 @@ function TenantLedger({ tenant, onClose }) {
         // Ignore a response that arrives after the ledger was closed or the
         // range changed again.
         return () => { ignore = true; };
-    }, [tenant.id, query, version]);
+    }, [tenant.id, query]);
 
     useEffect(() => {
         const onKeyDown = event => {
@@ -187,10 +184,7 @@ function TenantLedger({ tenant, onClose }) {
                                         {ledger.entries.map(entry => (
                                             <tr key={entry.id}>
                                                 <td>{formatDate(entry.date)}</td>
-                                                <td>
-                                                    {entry.description}
-                                                    {entry.pms_id === null && <span className="badge" title="Recorded here, not imported from the PMS">Local</span>}
-                                                </td>
+                                                <td>{entry.description}</td>
                                                 <td className="money">
                                                     {entry.type === 'charge' ? formatMoney(entry.amount) : ''}
                                                 </td>
@@ -240,10 +234,6 @@ function TenantLedger({ tenant, onClose }) {
                                 </table>
                             </details>
                         )}
-                        <details className="ledger-section">
-                            <summary>Add a transaction</summary>
-                            <AddTransactionForm tenantId={tenant.id} onAdded={() => setVersion(version + 1)} />
-                        </details>
                     </>
                 )}
             </div>

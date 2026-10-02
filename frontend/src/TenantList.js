@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import LabelChip from './LabelChip';
+import LabelEditor from './LabelEditor';
 import TenantLedger from './TenantLedger';
+import { getJson } from './api';
 import { formatDateTime, formatMoney } from './format';
 import {
     COLUMNS, NO_FILTERS, filterTenants, nextSort, sortTenants, unitPrefixes,
@@ -13,6 +16,9 @@ function TenantList() {
     const [sort, setSort] = useState({ key: 'name', direction: 'asc' });
     const [filters, setFilters] = useState(NO_FILTERS);
     const closeLedger = useCallback(() => setLedgerTenant(null), []);
+    const [labels, setLabels] = useState([]);
+    const [labelTenant, setLabelTenant] = useState(null);
+    const closeLabels = useCallback(() => setLabelTenant(null), []);
 
     useEffect(() => {
         fetch('/api/tenants/')
@@ -29,6 +35,11 @@ function TenantList() {
             });
     }, []);
 
+    useEffect(() => {
+        // Labels are an extra: the list is still usable if they fail to load.
+        getJson('/api/labels/').then(setLabels).catch(error => console.error("Error fetching labels:", error));
+    }, []);
+
     if (error) {
         return <div>Error loading tenants: {error.message}</div>;
     }
@@ -37,6 +48,9 @@ function TenantList() {
         return <div>Loading tenants...</div>;
     }
 
+    const applyLabels = (tenantId, saved) => setTenants(
+        tenants.map(tenant => (tenant.id === tenantId ? { ...tenant, labels: saved } : tenant)),
+    );
     const setFilter = name => event => setFilters({ ...filters, [name]: event.target.value });
     const visibleTenants = sortTenants(filterTenants(tenants, filters), sort);
     const filtered = Object.keys(NO_FILTERS).some(name => filters[name] !== '');
@@ -62,6 +76,15 @@ function TenantList() {
                                 <option value="">All</option>
                                 {unitPrefixes(tenants).map(prefix => (
                                     <option key={prefix} value={prefix}>{prefix}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label>
+                            Label
+                            <select value={filters.labelId} onChange={setFilter('labelId')}>
+                                <option value="">All</option>
+                                {labels.map(label => (
+                                    <option key={label.id} value={label.id}>{label.name}</option>
                                 ))}
                             </select>
                         </label>
@@ -116,6 +139,7 @@ function TenantList() {
                                         </th>
                                     );
                                 })}
+                                <th scope="col">Labels</th>
                                 <th scope="col">Action</th>
                             </tr>
                         </thead>
@@ -130,6 +154,16 @@ function TenantList() {
                                             ? <span title="No PMS record and no transactions">—</span>
                                             : formatMoney(tenant.balance)}
                                     </td>
+                                    <td className="label-cell">
+                                        {(tenant.labels || []).map(label => <LabelChip key={label.id} label={label} />)}
+                                        <button
+                                            className="link-button"
+                                            aria-label={`Edit labels for ${tenant.name}`}
+                                            onClick={() => setLabelTenant(tenant)}
+                                        >
+                                            Edit
+                                        </button>
+                                    </td>
                                     <td>
                                         <button
                                             aria-label={`View ledger for ${tenant.name}`}
@@ -142,7 +176,7 @@ function TenantList() {
                             ))}
                             {visibleTenants.length === 0 && (
                                 <tr>
-                                    <td colSpan={COLUMNS.length + 1}>No tenants match these filters.</td>
+                                    <td colSpan={COLUMNS.length + 2}>No tenants match these filters.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -150,6 +184,15 @@ function TenantList() {
                 </>
             )}
             {ledgerTenant && <TenantLedger tenant={ledgerTenant} onClose={closeLedger} />}
+            {labelTenant && (
+                <LabelEditor
+                    tenant={labelTenant}
+                    labels={labels}
+                    onClose={closeLabels}
+                    onSaved={applyLabels}
+                    onLabelCreated={label => setLabels([...labels, label])}
+                />
+            )}
         </div>
     );
 }

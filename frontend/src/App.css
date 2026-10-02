@@ -25,7 +25,8 @@
 }
 
 .App-header-minimal {
-  background-color: #282c34;
+  /* Rentable's navy, from rentable.co. */
+  background-color: #293c4e;
   padding: 20px;
   color: white;
   margin-bottom: 20px;
@@ -216,7 +217,7 @@
 
 .tabs button[aria-selected="true"] {
   color: white;
-  border-bottom-color: white;
+  border-bottom-color: #13ce66;
 }
 
 .insights {
@@ -424,7 +425,7 @@
 }
 
 .ledger-controls,
-.add-transaction {
+.new-label {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -433,7 +434,7 @@
 }
 
 .ledger-controls label,
-.add-transaction label {
+.new-label label {
   display: flex;
   flex-direction: column;
   font-size: 0.85em;
@@ -448,15 +449,6 @@
   font-style: italic;
 }
 
-.badge {
-  margin-left: 8px;
-  padding: 1px 6px;
-  border: 1px solid #9a9994;
-  border-radius: 10px;
-  font-size: 0.75em;
-  color: #52514e;
-}
-
 .ledger-section {
   margin-top: 16px;
 }
@@ -465,9 +457,114 @@
   margin: 8px 0 0;
 }
 
-.add-transaction-hint {
-  flex-basis: 100%;
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
-  font-size: 0.85em;
+  font-size: 1.1em;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+}
+
+/* Rentable's green, from rentable.co. */
+.brand-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #13ce66;
+}
+
+.App-header-minimal h1 {
+  margin: 4px 0 0;
+  font-size: 1.5em;
+}
+
+.label-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.8em;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-right: 6px;
+}
+
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: #1c5cab;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.label-editor {
+  max-width: 480px;
+}
+
+.label-options {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+}
+
+.label-options li {
+  padding: 4px 0;
+}
+
+.label-options input {
+  margin-right: 8px;
+}
+
+.label-editor-actions {
+  margin-top: 20px;
+  text-align: right;
+}
+
+.labels-tab {
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.labels-tab .tenant-filters {
+  justify-content: flex-start;
+}
+
+.label-group {
+  margin-top: 28px;
+}
+
+.label-group h3 {
+  margin: 0 0 8px;
+}
+
+.label-group-count {
+  font-size: 0.8em;
+  font-weight: normal;
   color: #52514e;
+}
+
+.label-group table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.label-group th,
+.label-group td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.label-group th {
+  background-color: #f2f2f2;
+  color: #333;
+}
+
+.label-group th.money,
+.label-group td.money {
+  text-align: right;
 }

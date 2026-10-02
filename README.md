@@ -46,8 +46,12 @@ transactions), run:
 cd backend && python manage.py import_transactions
 ```
 
-It is safe to run again at any time. To import without the network, pass a
-saved PMS response: `python manage.py import_transactions --source api/tests/fixtures/pms_tenants_sample.json`.
+It is safe to run again at any time. Useful options:
+
+* `--dry-run` reports what would change and writes nothing.
+* `--source api/tests/fixtures/pms_tenants_sample.json` imports a saved PMS response instead of calling the API.
+
+Set `LOG_FORMAT=json` to get the import's log events as one JSON object per line.
 
 ### Running the tests
 
@@ -70,13 +74,19 @@ cd e2e && npm install && npx playwright install chromium && npx playwright test
 
 * [`docs/decisions.md`](docs/decisions.md): what was wrong with the original code, what changed, and why.
 * [`docs/flow.md`](docs/flow.md): how data moves from the PMS to the ledger on screen, with diagrams.
+* [`docs/data-findings.md`](docs/data-findings.md): what the PMS data looks like, with the commands to reproduce each number.
+* [`docs/opportunities.md`](docs/opportunities.md): where this could go next.
+* [`docs/ai-usage.md`](docs/ai-usage.md): how AI was used and what was verified by hand.
 
 API endpoints:
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/tenants/` | Tenants, each with its current balance |
-| `GET /api/tenants/<id>/ledger/` | One tenant's transactions with a running balance and totals |
+| `GET /api/tenants/` | Tenants, each with its current balance and labels |
+| `GET /api/tenants/<id>/ledger/` | One tenant's transactions with a running balance and totals. Optional `start` and `end` (`YYYY-MM-DD`). |
+| `GET /api/tenants/<id>/ledger.csv` | The same ledger as a CSV download |
+| `PUT /api/tenants/<id>/labels/` | Replace a tenant's labels (`{"label_ids": [...]}`) |
+| `GET /api/labels/`, `POST /api/labels/` | List labels, or create one (`{"name", "color"}`) |
 | `GET /api/transactions/?tenant=<id>` | Raw transactions, optionally for one tenant |
 | `GET /api/reports/monthly-activity/` | Charges and payments per month across all tenants |
 

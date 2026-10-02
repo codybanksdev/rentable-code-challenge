@@ -29,5 +29,5 @@ def write_ledger_csv(ledger, output):
             '' if is_payment else transaction.amount,
             transaction.amount if is_payment else '',
             entry.running_balance,
-            transaction.pms_id or '',
+            transaction.pms_id,
         ])
