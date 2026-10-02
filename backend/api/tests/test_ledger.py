@@ -111,3 +111,21 @@ def test_transaction_list_filters_by_tenant():
     assert len(client.get('/api/transactions/').json()) == 2
     assert [t['pms_id'] for t in client.get(f'/api/transactions/?tenant={bob.id}').json()] == ['2']
     assert client.get('/api/transactions/?tenant=abc').status_code == 400
+
+
+def test_monthly_activity_nets_credits_and_returned_payments_per_month():
+    alice = Tenant.objects.create(name='Alice')
+    bob = Tenant.objects.create(name='Bob')
+    add(alice, '1', '2023-01-01', 'charge', '1500.00')
+    add(alice, '2', '2023-01-20', 'charge', '-80.00')
+    add(bob, '3', '2023-01-31', 'payment', '1000.00')
+    add(bob, '4', '2023-02-01', 'payment', '-1000.00')
+    add(bob, '5', '2023-03-15', 'charge', '35.00')
+
+    body = APIClient().get('/api/reports/monthly-activity/').json()
+
+    assert body == [
+        {'month': '2023-01', 'charges': '1420.00', 'payments': '1000.00'},
+        {'month': '2023-02', 'charges': '0.00', 'payments': '-1000.00'},
+        {'month': '2023-03', 'charges': '35.00', 'payments': '0.00'},
+    ]

@@ -29,3 +29,8 @@ class LedgerSerializer(serializers.Serializer):
     total_payments = serializers.DecimalField(max_digits=12, decimal_places=2)
     balance = serializers.DecimalField(max_digits=12, decimal_places=2)
     entries = LedgerEntrySerializer(many=True)
+
+class MonthlyActivitySerializer(serializers.Serializer):
+    month = serializers.DateField(format='%Y-%m')
+    charges = serializers.DecimalField(max_digits=14, decimal_places=2)
+    payments = serializers.DecimalField(max_digits=14, decimal_places=2)

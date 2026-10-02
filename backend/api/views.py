@@ -2,8 +2,11 @@ from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from api.models import Tenant, Transaction
-from api.serializers import LedgerSerializer, TenantSerializer, TransactionSerializer
+from api.serializers import (
+    LedgerSerializer, MonthlyActivitySerializer, TenantSerializer, TransactionSerializer,
+)
 from api.services.ledger import build_ledger
+from api.services.reports import monthly_activity
 
 # Create your views here.
 
@@ -45,4 +48,12 @@ def transaction_list(request):
             return Response({'detail': 'tenant must be a tenant id.'}, status=400)
         transactions = transactions.filter(tenant_id=tenant_id)
     serializer = TransactionSerializer(transactions, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def monthly_activity_report(request):
+    """
+    Returns total charges and payments per month across all tenants.
+    """
+    serializer = MonthlyActivitySerializer(monthly_activity(), many=True)
     return Response(serializer.data)
