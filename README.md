@@ -6,6 +6,7 @@
         * [API Spec](#api-spec)
 * [Getting Started](#getting-started)
     * [Loading the ledgers](#loading-the-ledgers)
+    * [Django admin](#django-admin)
     * [Running the tests](#running-the-tests)
     * [Solution notes](#solution-notes)
 * [The Challenge](#the-challenge)
@@ -37,7 +38,7 @@ Tenant and transaction data comes from a simulated external Property Management 
 
 This repo includes a [Dev Container](https://containers.dev/) config (`.devcontainer/`). It's the quickest way to get running: the container installs dependencies, migrates, and seeds the database for you. Not using Dev Containers? `.devcontainer/post_create.sh` shows what you'd need to do yourself.
 
-Once set up, run `./start.sh` from the project root. The backend runs at [`http://127.0.0.1:8009/`](http://127.0.0.1:8009/) and the frontend at [`http://localhost:3009/`](http://localhost:3009/).
+Once set up, run `./start.sh` from the project root. The backend runs at [`http://127.0.0.1:8009/`](http://127.0.0.1:8009/) and the frontend at [`http://localhost:3009/`](http://localhost:3009/). The [Django admin](#django-admin) is at [`http://127.0.0.1:8009/admin/`](http://127.0.0.1:8009/admin/).
 
 ### Loading the ledgers
 
@@ -55,6 +56,18 @@ It is safe to run again at any time. Useful options:
 * `--source api/tests/fixtures/pms_tenants_sample.json` imports a saved PMS response instead of calling the API.
 
 Set `LOG_FORMAT=json` to get the import's log events as one JSON object per line.
+
+### Django admin
+
+The tenants, transactions and labels are registered in the Django admin at
+[`http://127.0.0.1:8009/admin/`](http://127.0.0.1:8009/admin/), which is a
+quick way to inspect what an import wrote: filter transactions by type,
+category or "removed from the PMS", or search by description. It needs a
+login, which the template does not create:
+
+```bash
+cd backend && python manage.py createsuperuser
+```
 
 ### Running the tests
 
