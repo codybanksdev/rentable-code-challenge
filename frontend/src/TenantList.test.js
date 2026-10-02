@@ -1,10 +1,12 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TenantList from './TenantList';
 
 const tenants = [
     { id: 11, pms_tenant_id: 3, name: 'Daisy Ridley', unit: 'C303', balance: '1420.00' },
     { id: 12, pms_tenant_id: 4, name: 'Chris Jackson', unit: 'G114', balance: '0.00' },
+    { id: 13, pms_tenant_id: null, name: 'Charlie Chaplin', unit: 'C120', balance: '0.00' },
+    { id: 14, pms_tenant_id: 9, name: 'Zed Young', unit: 'G2', balance: '-550.00' },
 ];
 
 const ledger = {
@@ -50,6 +52,63 @@ test('lists tenants with their balance', async () => {
 
     const row = (await screen.findByText('Daisy Ridley')).closest('tr');
     expect(cells(row).slice(0, 4)).toEqual(['11', 'Daisy Ridley', 'C303', '$1,420.00']);
+});
+
+function names() {
+    return screen.getAllByRole('button', { name: /^View ledger for / })
+        .map(button => button.getAttribute('aria-label').replace('View ledger for ', ''));
+}
+
+// State updates from an event land on the next render, so wait for them.
+function expectNames(expected) {
+    return waitFor(() => expect(names()).toEqual(expected));
+}
+
+test('column headers sort the table and flip direction on a second click', async () => {
+    mockApi({ '/api/tenants/': tenants });
+    render(<TenantList />);
+    await screen.findByText('Daisy Ridley');
+    await expectNames(['Charlie Chaplin', 'Chris Jackson', 'Daisy Ridley', 'Zed Young']);
+
+    userEvent.click(screen.getByRole('button', { name: /^Balance/ }));
+    await expectNames(['Zed Young', 'Chris Jackson', 'Charlie Chaplin', 'Daisy Ridley']);
+    expect(screen.getByRole('columnheader', { name: /^Balance/ })).toHaveAttribute('aria-sort', 'ascending');
+
+    userEvent.click(screen.getByRole('button', { name: /^Balance/ }));
+    await expectNames(['Daisy Ridley', 'Charlie Chaplin', 'Chris Jackson', 'Zed Young']);
+    expect(screen.getByRole('columnheader', { name: /^Balance/ })).toHaveAttribute('aria-sort', 'descending');
+    expect(screen.getByRole('columnheader', { name: /^Name/ })).toHaveAttribute('aria-sort', 'none');
+});
+
+test('filters by unit prefix and balance range, and can be cleared', async () => {
+    mockApi({ '/api/tenants/': tenants });
+    render(<TenantList />);
+    await screen.findByText('Daisy Ridley');
+
+    userEvent.selectOptions(screen.getByLabelText('Unit prefix'), 'G');
+    await expectNames(['Chris Jackson', 'Zed Young']);
+
+    fireEvent.change(screen.getByLabelText('Min balance'), { target: { value: '0' } });
+    await expectNames(['Chris Jackson']);
+    expect(screen.getByRole('status')).toHaveTextContent('Showing 1 of 4 tenants');
+
+    fireEvent.change(screen.getByLabelText('Min balance'), { target: { value: '5000' } });
+    expect(await screen.findByText('No tenants match these filters.')).toBeInTheDocument();
+
+    userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(names()).toHaveLength(4));
+
+    fireEvent.change(screen.getByLabelText('Max balance'), { target: { value: '-1' } });
+    await expectNames(['Zed Young']);
+});
+
+test('shows a loading state before the tenants arrive', async () => {
+    mockApi({ '/api/tenants/': tenants });
+    render(<TenantList />);
+
+    expect(screen.getByText('Loading tenants...')).toBeInTheDocument();
+    expect(screen.queryByText('No tenants found.')).not.toBeInTheDocument();
+    await screen.findByText('Daisy Ridley');
 });
 
 test('View Ledger shows that tenant\'s transactions, running balance and totals', async () => {
@@ -99,6 +158,21 @@ test('a tenant with no transactions gets an empty state, not an empty table', as
     const dialog = await screen.findByRole('dialog');
     expect(await within(dialog).findByText('No transactions found for this tenant.')).toBeInTheDocument();
     expect(within(dialog).queryByRole('table')).not.toBeInTheDocument();
+    // $0.00 with no activity is not the same statement as "Paid in full".
+    expect(within(dialog).getByText('Balance (no activity)')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Paid in full')).not.toBeInTheDocument();
+});
+
+test('an unlinked tenant\'s empty ledger says it has no PMS record', async () => {
+    mockApi({
+        '/api/tenants/': tenants,
+        '/api/tenants/13/ledger/': { tenant: tenants[2], total_charges: '0.00', total_payments: '0.00', balance: '0.00', entries: [] },
+    });
+    render(<TenantList />);
+
+    userEvent.click(await screen.findByRole('button', { name: 'View ledger for Charlie Chaplin' }));
+
+    expect(await screen.findByText(/This tenant is not linked to a PMS record\./)).toBeInTheDocument();
 });
 
 test('a failed ledger request shows an error', async () => {

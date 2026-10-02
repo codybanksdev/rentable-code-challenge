@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { formatDate, formatMoney } from './format';
 
-function balanceLabel(balance) {
-    const value = Number(balance);
+function balanceLabel(ledger) {
+    // An empty ledger is not "paid in full": nothing was ever billed, or the
+    // tenant has no PMS record to import from.
+    if (ledger.entries.length === 0) return 'Balance (no activity)';
+    const value = Number(ledger.balance);
     if (value > 0) return 'Balance due';
     if (value < 0) return 'Credit balance';
     return 'Paid in full';
@@ -70,13 +73,17 @@ function TenantLedger({ tenant, onClose }) {
                                 <dd>{formatMoney(ledger.total_payments)}</dd>
                             </div>
                             <div className="ledger-balance">
-                                <dt>{balanceLabel(ledger.balance)}</dt>
+                                <dt>{balanceLabel(ledger)}</dt>
                                 <dd>{formatMoney(ledger.balance)}</dd>
                             </div>
                         </dl>
                         {ledger.entries.length === 0 ? (
-                            <p>No transactions found for this tenant.</p>
+                            <p>
+                                No transactions found for this tenant.
+                                {ledger.tenant.pms_tenant_id === null && ' This tenant is not linked to a PMS record.'}
+                            </p>
                         ) : (
+                            <div className="ledger-table-scroll">
                             <table>
                                 <thead>
                                     <tr>
@@ -103,6 +110,7 @@ function TenantLedger({ tenant, onClose }) {
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         )}
                     </>
                 )}
