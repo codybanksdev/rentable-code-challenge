@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import TenantLedger from './TenantLedger';
+import { axisMoney, niceLimit } from './chartScale';
 import { formatMoney } from './format';
 import { formatMonth, largestBalances, outstandingByBuilding, portfolioSummary } from './insightsData';
 
@@ -66,18 +67,6 @@ function BarList({ title, rows, emptyText, onSelect }) {
 const WIDTH = 720;
 const HEIGHT = 260;
 const PAD = { top: 16, right: 32, bottom: 28, left: 64 };
-
-const axisMoney = new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1,
-});
-
-// Round an axis limit away from zero to 1, 2, 2.5, 5 or 10 times a power of ten.
-function niceLimit(value) {
-    if (value === 0) return 0;
-    const magnitude = 10 ** Math.floor(Math.log10(Math.abs(value)));
-    const step = [1, 2, 2.5, 5, 10].find(candidate => candidate * magnitude >= Math.abs(value));
-    return Math.sign(value) * step * magnitude;
-}
 
 function MonthlyActivityChart({ months }) {
     const [hovered, setHovered] = useState(null);

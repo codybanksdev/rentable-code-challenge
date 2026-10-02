@@ -40,7 +40,7 @@ test('the tenant list shows every tenant with a balance', async ({ page }) => {
 test('View Ledger shows that tenant\'s transactions with a running balance', async ({ page }) => {
     const dialog = await openLedger(page, 'Daisy Ridley');
 
-    await expect(dialog.getByRole('heading')).toHaveText('Ledger: Daisy Ridley (Unit C303)');
+    await expect(dialog.getByRole('heading', { level: 2 })).toHaveText('Ledger: Daisy Ridley (Unit C303)');
     await expect(ledgerRows(dialog)).toHaveCount(10);
     await expect(ledgerRows(dialog).first()).toContainText('12/20/2022');
     await expect(ledgerRows(dialog).first()).toContainText('Security Deposit Charge');
@@ -156,7 +156,8 @@ test('the sticky list header does not paint over an open ledger', async ({ page 
 });
 
 test('the ledger\'s own column headers stay visible while it scrolls', async ({ page }) => {
-    await page.setViewportSize({ width: 900, height: 500 });
+    // Tall enough for the whole dialog, so only the entries scroll.
+    await page.setViewportSize({ width: 900, height: 950 });
     const dialog = await openLedger(page, 'Emma Mitchell');
     const header = dialog.getByRole('columnheader', { name: 'Description' });
 
@@ -194,7 +195,7 @@ test('a name under Largest balances due opens that tenant\'s ledger', async ({ p
     await largest.getByRole('button', { name: 'View ledger for Emma Mitchell' }).click();
 
     const dialog = page.getByRole('dialog');
-    await expect(dialog.getByRole('heading')).toHaveText('Ledger: Emma Mitchell (Unit F508)');
+    await expect(dialog.getByRole('heading', { level: 2 })).toHaveText('Ledger: Emma Mitchell (Unit F508)');
     await expect(dialog.locator('.ledger-balance')).toHaveText('Balance due$5,116.00');
     // Same table styling as when it is opened from the tenant list.
     await expect(dialog.getByRole('columnheader', { name: 'Description' })).toHaveCSS('position', 'sticky');
@@ -202,4 +203,22 @@ test('a name under Largest balances due opens that tenant\'s ledger', async ({ p
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(largest).toBeVisible();
+});
+
+test('the ledger shows how long the tenant has been active and charts the balance', async ({ page }) => {
+    const dialog = await openLedger(page, 'Daisy Ridley');
+
+    // First entry 12/20/2022, last 03/05/2023: December to March.
+    await expect(dialog.locator('.ledger-summary')).toContainText('Tenant for4 months');
+    await expect(dialog.locator('.ledger-summary')).toContainText('12/20/2022 to 03/05/2023');
+
+    const chart = dialog.getByRole('region', { name: 'Balance over time' });
+    await expect(chart.getByRole('img')).toHaveAccessibleName(
+        'Balance from 12/20/2022 to 03/05/2023, ending at $1,240.00',
+    );
+    // Hovering the right-hand edge reads out the last entry.
+    const box = await chart.locator('svg').boundingBox();
+    await page.mouse.move(box.x + box.width - 5, box.y + box.height / 2);
+    await expect(chart.getByRole('status')).toContainText('03/05/2023');
+    await expect(chart.getByRole('status')).toContainText('Balance: $1,240.00');
 });

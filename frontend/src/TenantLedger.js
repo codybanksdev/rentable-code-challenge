@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import BalanceChart from './BalanceChart';
 import { formatDate, formatMoney } from './format';
+import { tenancy } from './ledgerStats';
 
 function balanceLabel(ledger) {
     // An empty ledger is not "paid in full": nothing was ever billed, or the
@@ -9,6 +11,10 @@ function balanceLabel(ledger) {
     if (value > 0) return 'Balance due';
     if (value < 0) return 'Credit balance';
     return 'Paid in full';
+}
+
+function tenancyLabel({ months }) {
+    return `${months} ${months === 1 ? 'month' : 'months'}`;
 }
 
 function TenantLedger({ tenant, onClose }) {
@@ -76,7 +82,17 @@ function TenantLedger({ tenant, onClose }) {
                                 <dt>{balanceLabel(ledger)}</dt>
                                 <dd>{formatMoney(ledger.balance)}</dd>
                             </div>
+                            {tenancy(ledger.entries) && (
+                                <div>
+                                    <dt>Tenant for</dt>
+                                    <dd>{tenancyLabel(tenancy(ledger.entries))}</dd>
+                                    <dd className="ledger-summary-detail">
+                                        {formatDate(tenancy(ledger.entries).first)} to {formatDate(tenancy(ledger.entries).last)}, by ledger activity
+                                    </dd>
+                                </div>
+                            )}
                         </dl>
+                        <BalanceChart entries={ledger.entries} />
                         {ledger.entries.length === 0 ? (
                             <p>
                                 No transactions found for this tenant.

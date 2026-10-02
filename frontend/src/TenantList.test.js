@@ -129,6 +129,9 @@ test('View Ledger shows that tenant\'s transactions, running balance and totals'
     expect(within(dialog).getByText('Balance due').nextSibling).toHaveTextContent('$1,420.00');
     expect(within(dialog).getByText('Total charges').nextSibling).toHaveTextContent('$1,420.00');
     expect(within(dialog).getByText('Total payments').nextSibling).toHaveTextContent('$0.00');
+    // First entry Jan 1, last Jan 7: one calendar month of activity.
+    expect(within(dialog).getByText('Tenant for').nextSibling).toHaveTextContent('1 month');
+    expect(within(dialog).getByRole('img')).toHaveAccessibleName('Balance from 01/01/2023 to 01/07/2023, ending at $1,420.00');
 });
 
 test('the ledger closes with the Close button and with Escape', async () => {
@@ -161,6 +164,8 @@ test('a tenant with no transactions gets an empty state, not an empty table', as
     // $0.00 with no activity is not the same statement as "Paid in full".
     expect(within(dialog).getByText('Balance (no activity)')).toBeInTheDocument();
     expect(within(dialog).queryByText('Paid in full')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Tenant for')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('img')).not.toBeInTheDocument();
 });
 
 test('an unlinked tenant\'s empty ledger says it has no PMS record', async () => {
