@@ -1,0 +1,562 @@
+[
+  {
+    "tenant_id": 1,
+    "name": "Alice Wonderland",
+    "unit": "A101",
+    "ledger": [
+      {
+        "id": "3",
+        "date": "2022-12-20",
+        "description": "Security Deposit Charge",
+        "type": "charge",
+        "amount": 1000.0
+      },
+      {
+        "id": "4",
+        "date": "2022-12-22",
+        "description": "Security Deposit Payment",
+        "type": "payment",
+        "amount": 1000.0
+      },
+      {
+        "id": "1",
+        "date": "2023-01-01",
+        "description": "Rent Charge - January",
+        "type": "charge",
+        "amount": 1500.0
+      },
+      {
+        "id": "2",
+        "date": "2023-01-05",
+        "description": "Rent Payment - January",
+        "type": "payment",
+        "amount": 1500.0
+      },
+      {
+        "id": "5",
+        "date": "2023-02-01",
+        "description": "Rent Charge - February",
+        "type": "charge",
+        "amount": 1500.0
+      },
+      {
+        "id": "6",
+        "date": "2023-02-03",
+        "description": "Damages - Wall Repair",
+        "type": "charge",
+        "amount": 250.0
+      },
+      {
+        "id": "7",
+        "date": "2023-02-05",
+        "description": "Rent Payment - February",
+        "type": "payment",
+        "amount": 1500.0
+      },
+      {
+        "id": "8",
+        "date": "2023-02-15",
+        "description": "Late Fee Charge",
+        "type": "charge",
+        "amount": 50.0
+      },
+      {
+        "id": "9",
+        "date": "2023-03-01",
+        "description": "Rent Charge - March",
+        "type": "charge",
+        "amount": 1500.0
+      },
+      {
+        "id": "10",
+        "date": "2023-03-02",
+        "description": "Utility Charge - Electricity",
+        "type": "charge",
+        "amount": 120.0
+      },
+      {
+        "id": "21",
+        "date": "2023-03-05",
+        "description": "Payment for March Rent and Late Fee",
+        "type": "payment",
+        "amount": 1550.0
+      },
+      {
+        "id": "22",
+        "date": "2023-03-05",
+        "description": "Payment for February Utility Charge",
+        "type": "payment",
+        "amount": 120.0
+      },
+      {
+        "id": "23",
+        "date": "2023-03-06",
+        "description": "Payment for Damages - Wall Repair",
+        "type": "payment",
+        "amount": 250.0
+      }
+    ]
+  },
+  {
+    "tenant_id": 2,
+    "name": "Bob The Builder",
+    "unit": "B205",
+    "ledger": [
+      {
+        "id": "24",
+        "date": "2022-12-20",
+        "description": "Security Deposit Charge",
+        "type": "charge",
+        "amount": 900.0
+      },
+      {
+        "id": "25",
+        "date": "2022-12-22",
+        "description": "Security Deposit Payment",
+        "type": "payment",
+        "amount": 900.0
+      },
+      {
+        "id": "11",
+        "date": "2023-01-01",
+        "description": "Rent Charge - January",
+        "type": "charge",
+        "amount": 1450.0
+      },
+      {
+        "id": "12",
+        "date": "2023-01-07",
+        "description": "Rent Payment - January (Partial)",
+        "type": "payment",
+        "amount": 700.0
+      },
+      {
+        "id": "13",
+        "date": "2023-01-15",
+        "description": "Maintenance Fee - HVAC",
+        "type": "charge",
+        "amount": 150.0
+      },
+      {
+        "id": "14",
+        "date": "2023-02-01",
+        "description": "Rent Charge - February",
+        "type": "charge",
+        "amount": 1450.0
+      },
+      {
+        "id": "15",
+        "date": "2023-02-10",
+        "description": "Pet Fee",
+        "type": "charge",
+        "amount": 75.0
+      }
+    ]
+  },
+  {
+    "tenant_id": 3,
+    "name": "Daisy Ridley",
+    "unit": "C303",
+    "ledger": [
+      {
+        "id": "26",
+        "date": "2022-12-20",
+        "description": "Security Deposit Charge",
+        "type": "charge",
+        "amount": 800.0
+      },
+      {
+        "id": "27",
+        "date": "2022-12-22",
+        "description": "Security Deposit Payment",
+        "type": "payment",
+        "amount": 800.0
+      },
+      {
+        "id": "16",
+        "date": "2023-01-01",
+        "description": "Rent Charge - January",
+        "type": "charge",
+        "amount": 1300.0
+      },
+      {
+        "id": "17",
+        "date": "2023-01-03",
+        "description": "Rent Payment - January",
+        "type": "payment",
+        "amount": 1300.0
+      },
+      {
+        "id": "18",
+        "date": "2023-01-20",
+        "description": "Parking Fee",
+        "type": "charge",
+        "amount": 100.0
+      },
+      {
+        "id": "28",
+        "date": "2023-01-25",
+        "description": "Utility Payment",
+        "type": "payment",
+        "amount": 80.0
+      },
+      {
+        "id": "19",
+        "date": "2023-02-01",
+        "description": "Rent Charge - February",
+        "type": "charge",
+        "amount": 1300.0
+      },
+      {
+        "id": "29",
+        "date": "2023-02-03",
+        "description": "Rent Payment - February",
+        "type": "payment",
+        "amount": 1300.0
+      },
+      {
+        "id": "30",
+        "date": "2023-03-01",
+        "description": "Rent Charge - March",
+        "type": "charge",
+        "amount": 1300.0
+      },
+      {
+        "id": "20",
+        "date": "2023-03-05",
+        "description": "Utility Credit",
+        "type": "charge",
+        "amount": -80.0
+      }
+    ]
+  },
+  {
+    "tenant_id": 4,
+    "name": "Christopher Jackson",
+    "unit": "G114",
+    "ledger": [
+      {
+        "id": "31",
+        "date": "2022-01-25",
+        "description": "Security Deposit Charge",
+        "type": "charge",
+        "amount": 1150.0
+      },
+      {
+        "id": "32",
+        "date": "2022-01-30",
+        "description": "Security Deposit Payment",
+        "type": "payment",
+        "amount": 1150.0
+      },
+      {
+        "id": "33",
+        "date": "2022-02-01",
+        "description": "Rent Charge - February",
+        "type": "charge",
+        "amount": 1375.0
+      },
+      {
+        "id": "34",
+        "date": "2022-02-01",
+        "description": "Rent Payment - February",
+        "type": "payment",
+        "amount": 1375.0
+      },
+      {
+        "id": "35",
+        "date": "2022-02-05",
+        "description": "Returned Payment - NSF (February Rent)",
+        "type": "payment",
+        "amount": -1375.0
+      },
+      {
+        "id": "36",
+        "date": "2022-02-05",
+        "description": "Returned Payment Fee",
+        "type": "charge",
+        "amount": 35.0
+      },
+      {
+        "id": "37",
+        "date": "2022-02-14",
+        "description": "Rent Payment - February (Replacement)",
+        "type": "payment",
+        "amount": 1410.0
+      },
+      {
+        "id": "38",
+        "date": "2022-02-25",
+        "description": "Maintenance Fee - HVAC",
+        "type": "charge",
+        "amount": 210.0
+      },
+      {
+        "id": "39",
+        "date": "2022-03-01",
+        "description": "Payment for Maintenance Fee - HVAC",
+        "type": "payment",
+        "amount": 210.0
+      },
+      {
+        "id": "40",
+        "date": "2022-03-01",
+        "description": "Rent Charge - March",
+        "type": "charge",
+        "amount": 1375.0
+      },
+      {
+        "id": "41",
+        "date": "2022-03-01",
+        "description": "Rent Payment - March",
+        "type": "payment",
+        "amount": 1375.0
+      },
+      {
+        "id": "42",
+        "date": "2022-04-01",
+        "description": "Rent Charge - April",
+        "type": "charge",
+        "amount": 1375.0
+      },
+      {
+        "id": "43",
+        "date": "2022-04-03",
+        "description": "Rent Payment - April",
+        "type": "payment",
+        "amount": 1375.0
+      },
+      {
+        "id": "44",
+        "date": "2022-05-01",
+        "description": "Rent Charge - May",
+        "type": "charge",
+        "amount": 1375.0
+      },
+      {
+        "id": "45",
+        "date": "2022-05-05",
+        "description": "Rent Payment - May",
+        "type": "payment",
+        "amount": 1375.0
+      },
+      {
+        "id": "46",
+        "date": "2022-06-01",
+        "description": "Rent Charge - June",
+        "type": "charge",
+        "amount": 1375.0
+      },
+      {
+        "id": "47",
+        "date": "2022-06-03",
+        "description": "Rent Payment - June",
+        "type": "payment",
+        "amount": 1375.0
+      }
+    ]
+  },
+  {
+    "tenant_id": 5,
+    "name": "Emma Mitchell",
+    "unit": "F508",
+    "ledger": [
+      {
+        "id": "48",
+        "date": "2022-05-27",
+        "description": "Security Deposit Charge",
+        "type": "charge",
+        "amount": 600.0
+      },
+      {
+        "id": "49",
+        "date": "2022-05-29",
+        "description": "Security Deposit Payment",
+        "type": "payment",
+        "amount": 600.0
+      },
+      {
+        "id": "50",
+        "date": "2022-06-01",
+        "description": "Rent Charge - June",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "51",
+        "date": "2022-06-10",
+        "description": "Rent Payment - June (Partial)",
+        "type": "payment",
+        "amount": 547.0
+      },
+      {
+        "id": "52",
+        "date": "2022-07-01",
+        "description": "Rent Charge - July",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "53",
+        "date": "2022-07-04",
+        "description": "Rent Payment - July",
+        "type": "payment",
+        "amount": 1575.0
+      },
+      {
+        "id": "54",
+        "date": "2022-07-07",
+        "description": "Late Fee Waived",
+        "type": "charge",
+        "amount": -50.0
+      },
+      {
+        "id": "55",
+        "date": "2022-08-01",
+        "description": "Rent Charge - August",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "56",
+        "date": "2022-08-04",
+        "description": "Rent Payment - August",
+        "type": "payment",
+        "amount": 1575.0
+      },
+      {
+        "id": "57",
+        "date": "2022-09-01",
+        "description": "Rent Charge - September",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "58",
+        "date": "2022-09-01",
+        "description": "Rent Payment - September",
+        "type": "payment",
+        "amount": 1575.0
+      },
+      {
+        "id": "59",
+        "date": "2022-10-01",
+        "description": "Rent Charge - October",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "60",
+        "date": "2022-10-04",
+        "description": "Rent Payment - October",
+        "type": "payment",
+        "amount": 1575.0
+      },
+      {
+        "id": "61",
+        "date": "2022-11-01",
+        "description": "Rent Charge - November",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "62",
+        "date": "2022-11-02",
+        "description": "Rent Payment - November",
+        "type": "payment",
+        "amount": 1575.0
+      },
+      {
+        "id": "63",
+        "date": "2022-12-01",
+        "description": "Rent Charge - December",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "64",
+        "date": "2022-12-06",
+        "description": "Rent Payment - December (Partial)",
+        "type": "payment",
+        "amount": 622.0
+      },
+      {
+        "id": "65",
+        "date": "2023-01-01",
+        "description": "Rent Charge - January",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "66",
+        "date": "2023-02-01",
+        "description": "Rent Charge - February",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "67",
+        "date": "2023-02-06",
+        "description": "Rent Payment - February",
+        "type": "payment",
+        "amount": 1575.0
+      },
+      {
+        "id": "68",
+        "date": "2023-03-01",
+        "description": "Rent Charge - March",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "69",
+        "date": "2023-03-05",
+        "description": "Rent Payment - March",
+        "type": "payment",
+        "amount": 1575.0
+      },
+      {
+        "id": "70",
+        "date": "2023-04-01",
+        "description": "Rent Charge - April",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "71",
+        "date": "2023-04-02",
+        "description": "Rent Payment - April",
+        "type": "payment",
+        "amount": 1575.0
+      },
+      {
+        "id": "72",
+        "date": "2023-05-01",
+        "description": "Rent Charge - May",
+        "type": "charge",
+        "amount": 1575.0
+      },
+      {
+        "id": "73",
+        "date": "2023-05-01",
+        "description": "Rent Payment - May",
+        "type": "payment",
+        "amount": 1575.0
+      },
+      {
+        "id": "74",
+        "date": "2023-05-04",
+        "description": "Returned Payment - NSF (May Rent)",
+        "type": "payment",
+        "amount": -1575.0
+      },
+      {
+        "id": "75",
+        "date": "2023-05-04",
+        "description": "Returned Payment Fee",
+        "type": "charge",
+        "amount": 35.0
+      }
+    ]
+  }
+]

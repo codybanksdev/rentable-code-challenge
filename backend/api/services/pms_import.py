@@ -2,6 +2,7 @@
 
 See api/integration-data/PMS_API_SPEC.md for the upstream contract.
 """
+import json
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -51,8 +52,22 @@ def fetch_tenants_with_ledgers():
         payload = response.json()
     except (requests.exceptions.RequestException, ValueError) as exc:
         raise PMSImportError(f'Error fetching data from integration API: {exc}') from exc
+    return _require_tenant_list(payload)
+
+
+def load_tenants_from_file(path):
+    """Read a saved PMS tenants response instead of calling the API."""
+    try:
+        with open(path, encoding='utf-8') as source:
+            payload = json.load(source)
+    except (OSError, ValueError) as exc:
+        raise PMSImportError(f'Error reading {path}: {exc}') from exc
+    return _require_tenant_list(payload)
+
+
+def _require_tenant_list(payload):
     if not isinstance(payload, list):
-        raise PMSImportError('Integration API did not return a list of tenants.')
+        raise PMSImportError('PMS data is not a list of tenants.')
     return payload
 
 

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 import requests
@@ -7,7 +8,11 @@ from django.core.management.base import CommandError
 
 from api.models import Tenant, Transaction
 from api.services import pms_import
+from api.services.ledger import build_ledger
 from api.services.pms_import import import_tenants
+
+# PMS tenants 1-5 exactly as the live API returned them.
+SAMPLE = Path(__file__).parent / 'fixtures' / 'pms_tenants_sample.json'
 
 
 def entry(id, type='charge', amount=1500.0, date='2023-01-01', description='Rent Charge'):
@@ -158,3 +163,32 @@ def test_command_exits_non_zero_when_a_ledger_was_skipped(monkeypatch):
 
     with pytest.raises(CommandError, match='1 error'):
         call_command('import_transactions')
+
+
+def test_real_pms_sample_imports_to_the_hand_checked_balances():
+    # The seeded local tenants, whose ids must not be mistaken for PMS ids.
+    call_command('seed_data')
+
+    call_command('import_transactions', source=str(SAMPLE))
+
+    balances = {
+        t.pms_tenant_id: build_ledger(t).balance
+        for t in Tenant.objects.filter(pms_tenant_id__isnull=False)
+    }
+    # Worked by hand from the PMS response; see docs/decisions.md.
+    assert balances == {
+        1: Decimal('0.00'),     # Alice: charges 5,920, payments 5,920
+        2: Decimal('2425.00'),  # Bob: charges 4,025, payments 1,600
+        3: Decimal('1240.00'),  # Daisy: an $80 credit arrives as a negative charge
+        4: Decimal('0.00'),     # Christopher: a returned payment nets out
+        5: Decimal('5116.00'),  # Emma: partial payments and a returned payment
+    }
+    assert Tenant.objects.get(name='Charlie Chaplin').transactions.count() == 0
+    assert Tenant.objects.get(name='Bob The Builder').unit == 'B205'
+    first = build_ledger(Tenant.objects.get(pms_tenant_id=1)).entries[0].transaction
+    assert (first.date.isoformat(), first.description) == ('2022-12-20', 'Security Deposit Charge')
+
+
+def test_source_file_that_cannot_be_read_fails_the_command(tmp_path):
+    with pytest.raises(CommandError, match='Error reading'):
+        call_command('import_transactions', source=str(tmp_path / 'missing.json'))

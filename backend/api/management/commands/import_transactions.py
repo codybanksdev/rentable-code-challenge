@@ -1,15 +1,26 @@
 from django.core.management.base import BaseCommand, CommandError
 from api.models import Tenant
-from api.services.pms_import import PMSImportError, fetch_tenants_with_ledgers, import_tenants
+from api.services.pms_import import (
+    PMSImportError, fetch_tenants_with_ledgers, import_tenants, load_tenants_from_file,
+)
 
 class Command(BaseCommand):
     help = 'Imports tenants and their transaction ledgers from the integration API into the Django database.'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--source',
+            help='Import from a saved PMS response (JSON file) instead of calling the API.',
+        )
 
     def handle(self, *args, **options):
         self.stdout.write('Starting transaction import...')
 
         try:
-            tenants_data = fetch_tenants_with_ledgers()
+            if options['source']:
+                tenants_data = load_tenants_from_file(options['source'])
+            else:
+                tenants_data = fetch_tenants_with_ledgers()
         except PMSImportError as e:
             raise CommandError(str(e))
 

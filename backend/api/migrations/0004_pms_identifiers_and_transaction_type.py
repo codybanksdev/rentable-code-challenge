@@ -1,13 +1,12 @@
 from django.db import migrations, models
 
 
-def backfill_pms_id(apps, schema_editor):
-    # The previous import command wrote the PMS transaction id into the
-    # primary key, so that is the only place an existing row's PMS id lives.
-    Transaction = apps.get_model('api', 'Transaction')
-    for transaction in Transaction.objects.all().iterator():
-        transaction.pms_id = str(transaction.pk)
-        transaction.save(update_fields=['pms_id'])
+def delete_untyped_transactions(apps, schema_editor):
+    # Rows written before this migration never recorded whether they were a
+    # charge or a payment, and nothing in them can recover it. Guessing would
+    # publish a wrong balance, so they are dropped; the PMS is the system of
+    # record and `import_transactions` restores them with their type.
+    apps.get_model('api', 'Transaction').objects.all().delete()
 
 
 class Migration(migrations.Migration):
@@ -17,19 +16,19 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(delete_untyped_transactions, migrations.RunPython.noop),
         migrations.AddField(
             model_name='tenant',
             name='pms_tenant_id',
             field=models.PositiveIntegerField(blank=True, null=True, unique=True),
         ),
+        # The table is empty at this point, so these defaults never reach a row.
         migrations.AddField(
             model_name='transaction',
             name='pms_id',
             field=models.CharField(default='', max_length=64),
             preserve_default=False,
         ),
-        # Existing rows never recorded a type. They get a placeholder here and
-        # the next `import_transactions` run sets the real value from the PMS.
         migrations.AddField(
             model_name='transaction',
             name='type',
@@ -40,7 +39,6 @@ class Migration(migrations.Migration):
             ),
             preserve_default=False,
         ),
-        migrations.RunPython(backfill_pms_id, migrations.RunPython.noop),
         migrations.AddConstraint(
             model_name='transaction',
             constraint=models.UniqueConstraint(
