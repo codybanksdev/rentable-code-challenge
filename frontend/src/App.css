@@ -69,3 +69,70 @@
     transform: rotate(360deg);
   }
 } 
+.money {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tenant-list th.money,
+.tenant-list td.money {
+  text-align: right;
+}
+
+.ledger-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+
+.ledger {
+  background-color: white;
+  border-radius: 6px;
+  padding: 20px;
+  width: 100%;
+  max-width: 900px;
+  text-align: left;
+}
+
+.ledger-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ledger-header h2 {
+  margin: 0;
+}
+
+.ledger-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 20px 0 0;
+}
+
+.ledger-summary dt {
+  color: #555;
+  font-size: 0.85em;
+}
+
+.ledger-summary dd {
+  margin: 4px 0 0;
+  font-size: 1.25em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-balance dd {
+  font-weight: bold;
+}
+
+.tenant-list .ledger table {
+  width: 100%;
+}

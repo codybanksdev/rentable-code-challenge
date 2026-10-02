@@ -1,8 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import TenantLedger from './TenantLedger';
+import { formatMoney } from './format';
 
 function TenantList() {
     const [tenants, setTenants] = useState([]);
     const [error, setError] = useState(null);
+    const [ledgerTenant, setLedgerTenant] = useState(null);
+    const closeLedger = useCallback(() => setLedgerTenant(null), []);
 
     useEffect(() => {
         fetch('/api/tenants/')
@@ -35,6 +39,7 @@ function TenantList() {
                             <th>ID</th>
                             <th>Name</th>
                             <th>Unit</th>
+                            <th className="money">Balance</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -44,12 +49,21 @@ function TenantList() {
                                 <td>{tenant.id}</td>
                                 <td>{tenant.name}</td>
                                 <td>{tenant.unit}</td>
-                                <td><button>View Ledger</button></td>
+                                <td className="money">{formatMoney(tenant.balance)}</td>
+                                <td>
+                                    <button
+                                        aria-label={`View ledger for ${tenant.name}`}
+                                        onClick={() => setLedgerTenant(tenant)}
+                                    >
+                                        View Ledger
+                                    </button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             )}
+            {ledgerTenant && <TenantLedger tenant={ledgerTenant} onClose={closeLedger} />}
         </div>
     );
 }
