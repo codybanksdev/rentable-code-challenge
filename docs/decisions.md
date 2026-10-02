@@ -106,7 +106,8 @@ payment is a returned payment and raises it.
 
 *Not taken:* storing a signed amount (loses the PMS's own representation, and
 accountants reconcile against PMS statements); using `abs()` (turns Daisy's
-$80 credit into an $80 charge); reading meaning from the description text.
+$80 credit into an $80 charge); reading the direction from the description
+text.
 
 Checked by hand against the PMS response, and asserted in
 `backend/api/tests/test_pms_import.py`:
@@ -355,16 +356,18 @@ a running balance only means something in date order.
 
 ### Sorting and filtering happen in the browser
 
-The tenant table sorts by any column and filters by unit prefix and balance
-range. With 200 tenants this needs no server round trip. The rules are plain
+The tenant table sorts by any column and filters by unit prefix, label and
+balance range, and the roll-forward sorts by any column. With 200 tenants
+this needs no server round trip. The rules are plain
 functions in `frontend/src/tenantFilters.js`, tested on their own. Past a few
 thousand tenants this should move to query parameters and pagination.
 
 ### Charts are drawn without a chart library
 
-The charts are plain SVG and CSS (about 400 lines across `Insights.js`,
-`BalanceChart.js` and their helpers) rather than a new dependency. Each has the same numbers available as
-text or a table.
+The charts are plain SVG and CSS rather than a new dependency: one component
+for every month-by-month chart (`MonthlyChart.js`, about 130 lines) and one
+for a ledger's balance over time (`BalanceChart.js`, about 130). Each chart's
+numbers are also on the page as text or a table.
 
 "Total outstanding" adds up only tenants who owe money. It is not reduced by
 other tenants' credits, because a credit on one account does not pay down
@@ -376,12 +379,12 @@ another.
   `requirements.txt` because that is the one file the dev container installs.
   Versions are pinned: unpinned, Python 3.12 and later would install Django 6
   while the dev container (Python 3.11) installs Django 5.2.
-- CI (`.github/workflows/ci.yml`) runs all three suites and the frontend
-  build on every push.
 - Frontend: React Testing Library, already in the template
   (`cd frontend && npm test`).
 - End to end: Playwright in `e2e/`, against its own database loaded from the
   sample file.
+- CI (`.github/workflows/ci.yml`) runs all three suites and the frontend
+  build on every push.
 
 ## Not done, and why
 
@@ -403,7 +406,7 @@ Ideas for where this could go next are in `docs/opportunities.md`.
 | Is the ledger the complete history, starting from a zero balance? | Yes |
 | Can entries be edited or removed in the PMS? | Yes; edits are applied and removals are marked, not deleted |
 | Are transaction ids unique across tenants or only within one? | Only within a tenant (the stricter assumption) |
-| Should security deposits count toward the balance? | Yes, as the PMS presents them |
+| Should security deposits count toward the balance? | A deposit still owed does; a deposit already paid is reported apart as held |
 | When two entries share a date, is the PMS's order meaningful? | Yes; date then id reproduces it |
 | Does the endpoint return one customer's tenants or several? | One |
 | How fresh do ledgers need to be? | Import is run by hand; it is safe to schedule |

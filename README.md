@@ -72,6 +72,16 @@ cd e2e && npm install && npx playwright install chromium && npx playwright test
 
 ### Solution notes
 
+What was built, in the order an accountant would use it:
+
+* **Tenant list** with each tenant's balance, PMS id and labels. Sort by any column; filter by unit prefix, label and balance range; show balances as of a past date.
+* **View Ledger** opens that tenant's transactions, oldest first, with a running balance, the balance split into rent and fees owed and deposit held, a balance-over-time chart, a date range with an opening balance, and CSV export.
+* **Import** (`import_transactions`) that matches the PMS spec: it requests ledgers, keys on PMS ids, keeps the transaction type, validates every entry, and is safe to rerun.
+* **Insights**: total outstanding, deposits held, a receivable roll-forward statement with control totals and CSV export, and monthly charts, all for a chosen date range.
+* **Labels** for marking tenants ("At risk", "Requires follow up", "Defaulting", or your own).
+
+Start with `docs/decisions.md`:
+
 * [`docs/decisions.md`](docs/decisions.md): what was wrong with the original code, what changed, and why.
 * [`docs/flow.md`](docs/flow.md): how data moves from the PMS to the ledger on screen, with diagrams.
 * [`docs/data-findings.md`](docs/data-findings.md): what the PMS data looks like, with the commands to reproduce each number.

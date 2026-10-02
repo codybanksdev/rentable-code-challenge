@@ -25,6 +25,9 @@ line. This is what that looked like here.
   that produces it.
 - **The UI.** The ledger, filters, charts and labels were exercised in a real
   browser by the Playwright suite in `e2e/`, not only in unit tests.
+- **Numbers that should agree.** The roll-forward's closing total, the
+  month-end receivable and the ledger balances as of the same day come from
+  three different code paths, and tests assert they match.
 
 ## Mistakes the checks caught
 
@@ -35,3 +38,11 @@ line. This is what that looked like here.
   the app's HTML instead of the file. Caught by the end-to-end test.
 - The sticky table header painted over the ledger dialog. Caught by eye, then
   pinned with a test that fails without the fix.
+- Adding `--dry-run` wrapped every import in one database transaction, so one
+  tenant's database error would have undone all the others, while the docs
+  said each tenant committed on its own. Caught by an independent review.
+- The import first matched seeded tenants to the PMS by name. Both reviewers
+  flagged that two people can share a name; it now matches on the PMS id only.
+- Selecting a period on the balance chart crashed, because the pointer still
+  pointed at an entry that was no longer on screen. Caught by a unit test
+  written for the feature.
