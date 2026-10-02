@@ -36,6 +36,50 @@ This repo includes a [Dev Container](https://containers.dev/) config (`.devconta
 
 Once set up, run `./start.sh` from the project root. The backend runs at [`http://127.0.0.1:8009/`](http://127.0.0.1:8009/) and the frontend at [`http://localhost:3009/`](http://localhost:3009/).
 
+### Loading the ledgers
+
+The dev container seeds three tenants but does not import transactions. To
+load all tenants and their ledgers from the PMS (200 tenants, 4,424
+transactions), run:
+
+```bash
+cd backend && python manage.py import_transactions
+```
+
+It is safe to run again at any time. To import without the network, pass a
+saved PMS response: `python manage.py import_transactions --source api/tests/fixtures/pms_tenants_sample.json`.
+
+### Running the tests
+
+```bash
+cd backend && pytest
+```
+
+```bash
+cd frontend && npm test
+```
+
+The end-to-end suite starts its own backend and frontend on ports 8009 and
+3009 with a throwaway database, so stop `./start.sh` first:
+
+```bash
+cd e2e && npm install && npx playwright install chromium && npx playwright test
+```
+
+### Solution notes
+
+* [`docs/decisions.md`](docs/decisions.md): what was wrong with the original code, what changed, and why.
+* [`docs/flow.md`](docs/flow.md): how data moves from the PMS to the ledger on screen, with diagrams.
+
+API endpoints:
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/tenants/` | Tenants, each with its current balance |
+| `GET /api/tenants/<id>/ledger/` | One tenant's transactions with a running balance and totals |
+| `GET /api/transactions/?tenant=<id>` | Raw transactions, optionally for one tenant |
+| `GET /api/reports/monthly-activity/` | Charges and payments per month across all tenants |
+
 ## The Challenge
 
 The Head of Accounting at Couchman & Wavehill, one of our largest customers, is asking for ledger functionality. Their accounting team needs more visibility into tenant financials to reconcile their books efficiently. A View Ledger button has been added, but it currently does nothing. When they click it, they should see that tenant's transactions. And they need to see the balance on there too. We're trying to expand our relationship with them, so we want to do everything we can so that they want to move forward.

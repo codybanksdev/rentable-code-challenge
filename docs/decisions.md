@@ -1,0 +1,250 @@
+# Decisions
+
+What was wrong with the original code, what was done about it, and why. Each
+entry names the alternative that was not taken.
+
+The request: an accounting team wants to open a tenant's ledger, see the
+transactions and the balance, and reconcile against their books. Everything
+here is judged against that: a number on screen has to be one an accountant
+can trust and trace.
+
+## What the PMS data looks like
+
+Measured from the live API (`GET /tenants/?includeLedgers=true`):
+
+- 200 tenants, 4,424 ledger entries, 6 to 51 per tenant.
+- Every entry has `type` of `charge` (2,491) or `payment` (1,933).
+- 213 entries have a negative amount: 132 negative charges (credits,
+  concessions, waived fees) and 81 negative payments (returned payments).
+- Transaction ids are strings (`"3"`), tenant ids are numbers.
+- Dates are all `YYYY-MM-DD`; amounts are all whole dollars.
+- Without `includeLedgers=true` the same endpoint returns tenants with no
+  `ledger` key and HTTP 200.
+- The three seeded tenants are Alice Wonderland A101, Bob The Builder B202 and
+  Charlie Chaplin C303. PMS tenants 1 to 3 are Alice Wonderland A101, Bob The
+  Builder **B205** and **Daisy Ridley** C303. Charlie is not in the PMS.
+
+## Defects in the original code
+
+### 1. The import never requested ledgers
+
+`import_transactions` called `/tenants/` without `includeLedgers=true`, read
+the missing `ledger` key as an empty list, wrote nothing, and printed
+"Successfully imported transaction data."
+
+**Now:** the request sends `includeLedgers=true`. A tenant whose data has no
+`ledger` list is reported as an error instead of being treated as empty, so
+the same mistake cannot pass silently again.
+
+### 2. PMS tenant ids were compared to local primary keys
+
+`Tenant.objects.get(id=tenant_id)` treats the PMS `tenant_id` as the local
+database id. They only line up by accident. On a fresh database it would have
+put Daisy Ridley's ledger (PMS tenant 3) on Charlie Chaplin (local tenant 3),
+and skipped the other 197 tenants.
+
+**Now:** `Tenant.pms_tenant_id` (unique, nullable) holds the PMS id, and the
+import matches on that only.
+
+### 3. The transaction type was thrown away
+
+`type` was not in the model, the import, or the serializer. Payments arrive
+as positive numbers, so without the type there is no way to tell money owed
+from money received: summing amounts for Alice gives 11,840 when her real
+balance is 0.
+
+**Now:** `Transaction.type` is stored and is the only thing that decides an
+entry's direction.
+
+### 4. PMS transaction ids were written into the local primary key
+
+`update_or_create(id=<PMS id>)` let an external system choose local primary
+keys, and relied on the PMS string id happening to be numeric.
+
+**Now:** `Transaction.pms_id` is a string column, unique per tenant. Local
+ids are the database's own.
+
+### 5. No ordering
+
+Nothing ordered the transactions, so they came back in primary-key order,
+which was PMS id order. Alice's security deposit has PMS ids 3 and 4 but is
+dated before ids 1 and 2, so her ledger would have opened out of date order.
+
+**Now:** the ledger is ordered by date, then by PMS id compared as a number.
+That reproduces the PMS's own order for every tenant.
+
+### 6. Failures looked like success
+
+A network error was printed and the command returned normally. There was no
+timeout, and nothing wrapped the writes, so a failure midway left a partial
+import.
+
+**Now:** a 30 second timeout; fetch errors raise `CommandError` (non-zero
+exit); each tenant is written in its own database transaction; the command
+prints what it created, updated and removed.
+
+### 7. Smaller things
+
+- `transaction_list` said it filtered by tenant and did not. It now does
+  (`?tenant=<id>`).
+- Amounts went from JSON float straight into a decimal field. They are now
+  parsed with `Decimal(str(value))` and must be a whole number of cents.
+- The tenant list showed "No tenants found." while it was still loading.
+- `CORS_ALLOWED_ORIGINS` allowed port 3000; the frontend runs on 3009.
+- There were no tests.
+
+## Decisions
+
+### Balance = charges minus payments, with the PMS sign kept
+
+Amounts are stored exactly as the PMS sends them and `type` gives the
+direction. A negative charge is a credit and lowers the balance; a negative
+payment is a returned payment and raises it.
+
+*Not taken:* storing a signed amount (loses the PMS's own representation, and
+accountants reconcile against PMS statements); using `abs()` (turns Daisy's
+$80 credit into an $80 charge); reading meaning from the description text.
+
+Checked by hand against the PMS response, and asserted in
+`backend/api/tests/test_pms_import.py`:
+
+| PMS tenant | Charges | Payments | Balance |
+|---|---|---|---|
+| 1 Alice Wonderland | 5,920 | 5,920 | 0 |
+| 2 Bob The Builder | 4,025 | 1,600 | 2,425 |
+| 3 Daisy Ridley | 4,720 | 3,480 | 1,240 |
+| 4 Christopher Jackson | 8,270 | 8,270 | 0 |
+| 5 Emma Mitchell | 19,485 | 14,369 | 5,116 |
+
+### The balance is derived, never stored
+
+It is computed from the transactions on every read, in two places that are
+tested to agree: `build_ledger` (running balance for one tenant) and
+`Tenant.objects.with_balance()` (one query for the whole list).
+
+*Not taken:* a `balance` column on the tenant, which can drift from the
+transactions and has to be maintained by every future write path.
+
+### The running balance is computed in Python, on the server
+
+A ledger has at most 51 entries, so a loop is simpler to read and to explain
+than a SQL window function. It is done on the server in `Decimal` so no money
+arithmetic happens in JavaScript floats; the API sends money as strings.
+
+### The import brings in every PMS tenant
+
+The original command skipped any tenant not already in the local database,
+which is 197 of 200. The request is visibility into tenant financials, so the
+import creates them.
+
+*Not taken:* importing ledgers only for the three seeded tenants.
+
+*Open question:* this assumes the endpoint is scoped to one customer. If it
+returns several customers' tenants, the model needs a customer or property
+boundary first.
+
+### Seeded tenants are linked to the PMS by exact name, once
+
+The seeded tenants have no PMS id. On first import, a PMS tenant with no
+local match adopts an unlinked local tenant when exactly one has the same
+name; after that the PMS id is the only key. Alice and Bob link this way, and
+Bob's unit is updated to B205 because the PMS is the source of truth. Charlie
+Chaplin matches nothing, stays unlinked with an empty ledger, and is reported
+on every import.
+
+*Not taken:* putting PMS ids in the seed data and dropping the name match.
+That is stricter (a name is not an identity) and is the better choice if the
+seed is the only source of pre-existing tenants. The name match is kept
+because it also covers a database that already has tenants in it. It never
+guesses between two candidates.
+
+### An import removes transactions the PMS no longer has
+
+The local table is a copy of the PMS. If the PMS voids an entry and the copy
+keeps it, the balance on screen can never reconcile with the PMS. The command
+prints how many were removed.
+
+*Not taken:* never deleting (the balance drifts); marking entries as removed
+and keeping them for audit. The second is the right next step if this
+database becomes more than a mirror, because a deletion leaves no record of
+why yesterday's balance changed. It is not built because the PMS does not
+say whether entries can disappear at all.
+
+### One bad entry holds back that tenant's whole ledger
+
+If any entry in a tenant's ledger fails validation, none of that tenant's
+changes are applied, the tenant is reported, the other tenants still import,
+and the command exits non-zero.
+
+*Not taken:* skipping only the bad entry (a ledger missing one entry shows a
+plausible, wrong balance); aborting the whole import (one tenant's bad data
+would block the other 199).
+
+### Existing transactions are deleted by the migration
+
+Rows written before `type` existed cannot be given a correct type. Rather
+than default them to `charge` and show a wrong balance, migration `0004`
+deletes them; the next import restores them from the PMS. With the original
+command this table was always empty, since it never imported anything.
+
+### The import can read a saved response (`--source`)
+
+`import_transactions --source file.json` imports a saved PMS response. The
+tests and the end-to-end suite use
+`backend/api/tests/fixtures/pms_tenants_sample.json`, which is PMS tenants 1
+to 5 exactly as the API returned them, so they run without the network and
+assert against real data.
+
+### The ledger opens as a dialog, and stays in date order
+
+The ledger shows separate Charge and Payment columns and a running Balance
+column, which is the layout an accountant expects. Its rows are not sortable:
+a running balance only means something in date order.
+
+### Sorting and filtering happen in the browser
+
+The tenant table sorts by any column and filters by unit prefix and balance
+range. With 200 tenants this needs no server round trip. The rules are plain
+functions in `frontend/src/tenantFilters.js`, tested on their own. Past a few
+thousand tenants this should move to query parameters and pagination.
+
+### Charts are drawn without a chart library
+
+The Insights tab has three charts. They are plain SVG and CSS, about 150
+lines, rather than a new dependency. Each has the same numbers available as
+text or a table.
+
+"Total outstanding" adds up only tenants who owe money. It is not reduced by
+other tenants' credits, because a credit on one account does not pay down
+another.
+
+### Tests
+
+- Backend: pytest with pytest-django (`cd backend && pytest`). They are in
+  `requirements.txt` because that is the one file the dev container installs.
+- Frontend: React Testing Library, already in the template
+  (`cd frontend && npm test`).
+- End to end: Playwright in `e2e/`, against its own database loaded from the
+  sample file.
+
+## Not done, and why
+
+- **Authentication and per-customer scoping.** The template has none; a real
+  ledger needs both before it is exposed.
+- **Pagination.** 200 tenants and at most 51 entries per ledger.
+- **A "last synced" time.** Worth adding with scheduled imports, so a reader
+  knows how fresh the ledger is.
+- **CSV export, date-range filter, as-of balance.** Natural next steps for
+  reconciliation; see the questions below.
+
+## Questions for the customer and the PMS owner
+
+| Question | Assumed for now |
+|---|---|
+| Is the ledger the complete history, starting from a zero balance? | Yes |
+| Can entries be edited or removed in the PMS? | Yes; the import mirrors whatever the PMS returns |
+| Are transaction ids unique across tenants or only within one? | Only within a tenant (the stricter assumption) |
+| Should security deposits count toward the balance? | Yes, as the PMS presents them |
+| When two entries share a date, is the PMS's order meaningful? | Yes; date then id reproduces it |
+| Does the endpoint return one customer's tenants or several? | One |
+| How fresh do ledgers need to be? | Import is run by hand; it is safe to schedule |
