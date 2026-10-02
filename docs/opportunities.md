@@ -107,6 +107,10 @@ guessing.
 held. A deposit is a liability to the tenant, not income, and accountants
 keep it in a different account.
 
+This is the closest idea here to Rentable's own product, which manages
+security deposits: the ledger already carries every deposit charge and
+payment, so it could show what is held per tenant and across the portfolio.
+
 **What it takes.** A category on each entry (see 6), then two subtotals on
 the ledger. Today the deposit charge and payment net to zero for every
 tenant, so the balance is right, but the totals include them.
