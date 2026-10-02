@@ -46,7 +46,7 @@ def monthly_activity(start=None, end=None):
 
     rows = []
     receivable = ZERO
-    for month in months:
+    for month in _without_gaps(list(months)):
         receivable += month['charges'] - month['payments']
         rows.append({
             'month': month['month'],
@@ -72,6 +72,28 @@ def monthly_activity(start=None, end=None):
         return after_start and before_end
 
     return [row for row in rows if in_range(row)]
+
+
+def _without_gaps(months):
+    """Insert a zero row for any month with no transactions.
+
+    The charts place months at even intervals, so a missing month would make
+    the months after it look closer together than they are.
+    """
+    filled = []
+    for month in months:
+        while filled and _next_month(filled[-1]['month']) < month['month']:
+            filled.append({
+                'month': _next_month(filled[-1]['month']),
+                'charges': ZERO, 'payments': ZERO, 'returned': ZERO, 'returned_count': 0,
+            })
+        filled.append(month)
+    return filled
+
+
+def _next_month(first_of_month):
+    year, month = divmod(first_of_month.month, 12)
+    return first_of_month.replace(year=first_of_month.year + year, month=month + 1)
 
 
 def roll_forward(start=None, end=None):

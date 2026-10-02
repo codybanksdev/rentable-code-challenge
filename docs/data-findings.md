@@ -3,6 +3,16 @@
 Everything in `docs/decisions.md` rests on these measurements. Each one can
 be reproduced with the command beside it.
 
+## Contents
+
+- [The measurements](#the-measurements)
+- [Checking the database against the PMS](#checking-the-database-against-the-pms)
+- [What the negative amounts are](#what-the-negative-amounts-are)
+- [Local tenants against PMS tenants](#local-tenants-against-pms-tenants)
+- [How the API behaves](#how-the-api-behaves)
+
+## The measurements
+
 Save the response once:
 
 ```bash
@@ -29,11 +39,18 @@ curl -sS 'https://kpsaflrfjmhwomxiqrtiplvqem0hfmec.lambda-url.us-east-2.on.aws/a
 | Security deposit entries | 200 charges and 200 payments, 208,250 each | `jq '[.[].ledger[] \| select(.description \| test("deposit"; "i"))] \| group_by(.description) \| map({d: .[0].description, n: length, total: (map(.amount) \| add)})' pms.json` |
 | Naive sum of amounts, ignoring type | 5,198,353 | `jq '[.[].ledger[].amount] \| add' pms.json` |
 
-## Contents
+## Checking the database against the PMS
 
-- [What the negative amounts are](#what-the-negative-amounts-are)
-- [Local tenants against PMS tenants](#local-tenants-against-pms-tenants)
-- [How the API behaves](#how-the-api-behaves)
+After `python manage.py import_transactions`, with `./start.sh` running, this
+compares every tenant's balance in the application with one computed from the
+raw PMS response. It prints `true` when all 200 agree:
+
+```bash
+jq -n --slurpfile app <(curl -sS http://127.0.0.1:8009/api/tenants/) --slurpfile pms pms.json '
+  ($pms[0] | map({key: (.tenant_id | tostring), value: (.ledger | map(if .type == "payment" then -.amount else .amount end) | add)}) | from_entries) as $expected
+  | [$app[0][] | select(.pms_tenant_id != null) | (.balance | tonumber) == $expected[.pms_tenant_id | tostring]]
+  | length == 200 and all'
+```
 
 ## What the negative amounts are
 

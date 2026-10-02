@@ -117,13 +117,7 @@ Tenants grouped by label:
 
 ![Labels tab listing tenants under At risk, Defaulting and Requires follow up](docs/screenshots/labels.png)
 
-The documents are indexed in [`docs/README.md`](docs/README.md). Start with `docs/decisions.md`:
-
-* [`docs/decisions.md`](docs/decisions.md): what was wrong with the original code, what changed, and why.
-* [`docs/flow.md`](docs/flow.md): how data moves from the PMS to the ledger on screen, with diagrams.
-* [`docs/data-findings.md`](docs/data-findings.md): what the PMS data looks like, with the commands to reproduce each number.
-* [`docs/opportunities.md`](docs/opportunities.md): where this could go next.
-* [`docs/ai-usage.md`](docs/ai-usage.md): how AI was used and what was verified by hand.
+The write-up is in [`docs/`](docs/README.md): what was wrong with the original code and every decision made about it ([`decisions.md`](docs/decisions.md), the one to start with), how the data flows, what the PMS data looks like, where this could go next, and how AI was used.
 
 API endpoints:
 

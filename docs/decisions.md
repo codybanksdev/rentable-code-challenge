@@ -276,7 +276,10 @@ never touches them.
   `requirements.txt` the dev container installs. Versions are pinned, because
   unpinned Python 3.12+ would install Django 6 while the dev container
   (Python 3.11) installs 5.2.
-- Frontend: React Testing Library, already in the template.
+- Frontend: React Testing Library, already in the template, moved from 13 to
+  14. `setupTests.js` runs `userEvent` inside React's `act()`: the template's
+  two testing packages each load their own copy of the DOM helpers, and only
+  one was wired to React, so clicks updated state late and logged warnings.
 - End to end: Playwright in `e2e/`, against its own database loaded from the
   sample file.
 - CI (`.github/workflows/ci.yml`) runs all three and the frontend build.

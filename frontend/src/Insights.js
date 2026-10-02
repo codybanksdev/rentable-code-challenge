@@ -203,11 +203,13 @@ function Insights() {
     const [range, setRange] = useState({ start: '', end: '' });
     const [ledgerTenant, setLedgerTenant] = useState(null);
     const closeLedger = useCallback(() => setLedgerTenant(null), []);
+    const { start, end } = range;
     const query = rangeQuery(range);
-    const asOf = range.end ? `?as_of=${range.end}` : '';
 
     useEffect(() => {
         let ignore = false;
+        const query = rangeQuery({ start, end });
+        const asOf = end ? `?as_of=${end}` : '';
         Promise.all([
             // Balances are a standing figure, so they are taken as of the end
             // of the period; the monthly series and roll-forward cover it.
@@ -219,7 +221,7 @@ function Insights() {
                 // `query` is kept with the data so headings describe the
                 // figures on screen, not a period still being fetched.
                 if (!ignore) {
-                    setData({ tenants, months, statement, query, end: range.end });
+                    setData({ tenants, months, statement, query, end });
                     setError(null);
                 }
             })
@@ -228,9 +230,7 @@ function Insights() {
                 if (!ignore) setError(error);
             });
         return () => { ignore = true; };
-        // range.end is covered by asOf and query.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [asOf, query]);
+    }, [start, end]);
 
     const setRangeField = name => event => setRange({ ...range, [name]: event.target.value });
     const controls = (

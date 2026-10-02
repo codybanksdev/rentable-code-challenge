@@ -36,6 +36,9 @@ const routes = {
     '/api/labels/': [],
     '/api/reports/monthly-activity/': months,
     '/api/reports/roll-forward/': statement,
+    // Typing the From date before the To date asks for an open-ended period.
+    '/api/reports/monthly-activity/?start=2023-01-01': months,
+    '/api/reports/roll-forward/?start=2023-01-01': { ...statement, start: '2023-01-01' },
     '/api/tenants/?as_of=2023-01-31': tenantsInJanuary,
     '/api/reports/monthly-activity/?start=2023-01-01&end=2023-01-31': months.slice(0, 1),
     '/api/reports/roll-forward/?start=2023-01-01&end=2023-01-31': januaryStatement,

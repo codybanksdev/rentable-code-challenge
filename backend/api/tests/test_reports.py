@@ -169,3 +169,19 @@ def test_month_end_receivable_equals_the_roll_forward_closing_total():
     # Two reports, two queries, one number.
     assert january['receivable'] == statement['totals']['closing']
     assert months[-1]['receivable'] == '8781.00'  # 2,425 + 1,240 + 5,116
+
+
+def test_a_month_with_no_transactions_is_reported_as_zero_not_left_out():
+    tenant = Tenant.objects.create(name='Alice', pms_tenant_id=1)
+    add(tenant, '1', '2022-11-15', 'charge', '100.00')
+    add(tenant, '2', '2023-02-01', 'payment', '40.00')
+
+    body = APIClient().get('/api/reports/monthly-activity/').json()
+
+    # December and January had nothing; the receivable carries through them.
+    assert [(m['month'], m['charges'], m['payments'], m['collection_rate'], m['receivable']) for m in body] == [
+        ('2022-11', '100.00', '0.00', '0.0000', '100.00'),
+        ('2022-12', '0.00', '0.00', None, '100.00'),
+        ('2023-01', '0.00', '0.00', None, '100.00'),
+        ('2023-02', '0.00', '40.00', None, '60.00'),
+    ]
