@@ -35,25 +35,30 @@
   padding: 20px;
 }
 
-.tenant-list table {
+.tenant-list table,
+.ledger table {
   width: 80%;
   margin: 20px auto;
   border-collapse: collapse;
 }
 
 .tenant-list th,
-.tenant-list td {
+.tenant-list td,
+.ledger th,
+.ledger td {
   border: 1px solid #ddd;
   padding: 8px;
   text-align: left;
 }
 
-.tenant-list th {
+.tenant-list th,
+.ledger th {
   background-color: #f2f2f2;
   color: #333;
 }
 
-.tenant-list tr:nth-child(even) {
+.tenant-list tr:nth-child(even),
+.ledger tr:nth-child(even) {
   background-color: #f9f9f9;
 }
 
@@ -76,7 +81,9 @@
 }
 
 .tenant-list th.money,
-.tenant-list td.money {
+.tenant-list td.money,
+.ledger th.money,
+.ledger td.money {
   text-align: right;
 }
 
@@ -135,13 +142,14 @@
   font-weight: bold;
 }
 
-.tenant-list .ledger table {
+.ledger table {
   width: 100%;
 }
 
 /* Sticky column headers. With border-collapse the cell borders scroll away
    from a sticky cell, so the header draws its own bottom edge. */
-.tenant-list thead th {
+.tenant-list thead th,
+.ledger thead th {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -185,7 +193,7 @@
   margin-top: 20px;
 }
 
-.tenant-list .ledger-table-scroll table {
+.ledger-table-scroll table {
   margin: 0;
 }
 
@@ -355,4 +363,18 @@
   min-width: 1px;
   background-color: #2a78d6;
   border-radius: 0 4px 4px 0;
+}
+
+.bar-label button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: #1c5cab;
+  text-decoration: underline;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

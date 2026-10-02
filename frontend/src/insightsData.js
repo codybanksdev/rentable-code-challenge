@@ -38,6 +38,7 @@ export function largestBalances(tenants, count = 10) {
         .map(tenant => ({
             label: `${tenant.name}${tenant.unit ? ` (${tenant.unit})` : ''}`,
             value: Number(tenant.balance),
+            tenant,
         }));
 }
 

@@ -186,3 +186,20 @@ test('the Insights tab charts the portfolio', async ({ page }) => {
     await page.getByRole('tab', { name: 'Tenants' }).click();
     await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
 });
+
+test('a name under Largest balances due opens that tenant\'s ledger', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Insights' }).click();
+    const largest = page.getByRole('region', { name: 'Largest balances due' });
+
+    await largest.getByRole('button', { name: 'View ledger for Emma Mitchell' }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading')).toHaveText('Ledger: Emma Mitchell (Unit F508)');
+    await expect(dialog.locator('.ledger-balance')).toHaveText('Balance due$5,116.00');
+    // Same table styling as when it is opened from the tenant list.
+    await expect(dialog.getByRole('columnheader', { name: 'Description' })).toHaveCSS('position', 'sticky');
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(largest).toBeVisible();
+});

@@ -24,8 +24,8 @@ test('building totals ignore credits and sort by building', () => {
 
 test('largest balances lists only tenants who owe, biggest first', () => {
     expect(largestBalances(tenants, 2)).toEqual([
-        { label: 'Bob (B205)', value: 2425 },
-        { label: 'Daisy (A20)', value: 1240 },
+        { label: 'Bob (B205)', value: 2425, tenant: tenants[1] },
+        { label: 'Daisy (A20)', value: 1240, tenant: tenants[2] },
     ]);
 });
 

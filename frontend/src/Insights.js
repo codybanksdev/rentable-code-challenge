@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import TenantLedger from './TenantLedger';
 import { formatMoney } from './format';
 import { formatMonth, largestBalances, outstandingByBuilding, portfolioSummary } from './insightsData';
 
@@ -27,7 +28,8 @@ function StatTile({ label, value, detail }) {
 }
 
 // One series, so one colour and no legend: the heading names what is measured.
-function BarList({ title, rows, emptyText }) {
+// With `onSelect`, each row's label is a button that opens that row's tenant.
+function BarList({ title, rows, emptyText, onSelect }) {
     const max = Math.max(...rows.map(row => row.value), 0);
     return (
         <section className="chart" aria-label={title}>
@@ -36,7 +38,16 @@ function BarList({ title, rows, emptyText }) {
                 <ul className="bar-list">
                     {rows.map(row => (
                         <li key={row.label} title={`${row.label}: ${formatMoney(row.value)}`}>
-                            <span className="bar-label">{row.label}</span>
+                            <span className="bar-label">
+                                {onSelect ? (
+                                    <button
+                                        aria-label={`View ledger for ${row.tenant.name}`}
+                                        onClick={() => onSelect(row.tenant)}
+                                    >
+                                        {row.label}
+                                    </button>
+                                ) : row.label}
+                            </span>
                             <span className="bar-track">
                                 <span
                                     className="bar-fill"
@@ -183,6 +194,8 @@ function MonthlyActivityChart({ months }) {
 function Insights() {
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
+    const [ledgerTenant, setLedgerTenant] = useState(null);
+    const closeLedger = useCallback(() => setLedgerTenant(null), []);
 
     useEffect(() => {
         let ignore = false;
@@ -235,7 +248,9 @@ function Insights() {
                 title="Largest balances due"
                 rows={largestBalances(data.tenants)}
                 emptyText="No tenant has a balance due."
+                onSelect={setLedgerTenant}
             />
+            {ledgerTenant && <TenantLedger tenant={ledgerTenant} onClose={closeLedger} />}
         </div>
     );
 }
