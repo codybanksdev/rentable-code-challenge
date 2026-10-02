@@ -17,6 +17,7 @@ function makeLedger(tenant, overrides = {}) {
     return {
         tenant, start: null, end: null, opening_balance: '0.00',
         total_charges: '0.00', total_payments: '0.00', balance: '0.00',
+        rent_and_fees_receivable: '0.00', deposit_due: '0.00', deposit_held: '0.00',
         entries: [], removed_entries: [], ...overrides,
     };
 }
@@ -66,7 +67,7 @@ test('lists tenants with their balance', async () => {
     expect(cells(row).slice(0, 4)).toEqual(['3', 'Daisy Ridley', 'C303', '$1,420.00']);
     // No PMS record and no transactions: no id and no balance, rather than $0.00.
     expect(cells(screen.getByText('Charlie Chaplin').closest('tr')).slice(0, 4)).toEqual(['—', 'Charlie Chaplin', 'C120', '—']);
-    expect(screen.getByText(/^Ledgers last synced from the PMS: /)).toBeInTheDocument();
+    expect(screen.getByText(/^Most recent ledger sync from the PMS: .* 1 never synced\.$/)).toBeInTheDocument();
 });
 
 function names() {
@@ -142,8 +143,8 @@ test('View Ledger shows that tenant\'s transactions, running balance and totals'
         ['01/07/2023', 'Returned Payment - NSF', '', '($1,420.00)', '$1,420.00'],
     ]);
     expect(within(dialog).getByText('Balance due').nextSibling).toHaveTextContent('$1,420.00');
-    expect(within(dialog).getByText('Total charges').nextSibling).toHaveTextContent('$1,420.00');
-    expect(within(dialog).getByText('Total payments').nextSibling).toHaveTextContent('$0.00');
+    expect(within(dialog).getByText('Net charges').nextSibling).toHaveTextContent('$1,420.00');
+    expect(within(dialog).getByText('Net payments').nextSibling).toHaveTextContent('$0.00');
     // First entry Jan 1, last Jan 7: one calendar month of activity.
     expect(within(dialog).getByText('Tenant for').nextSibling).toHaveTextContent('1 month');
     expect(within(dialog).getByRole('img')).toHaveAccessibleName('Balance from 01/01/2023 to 01/07/2023, ending at $1,420.00');
@@ -193,6 +194,8 @@ test('an unlinked tenant\'s empty ledger says it has no PMS record', async () =>
     userEvent.click(await screen.findByRole('button', { name: 'View ledger for Charlie Chaplin' }));
 
     expect(await screen.findByText(/This tenant is not linked to a PMS record\./)).toBeInTheDocument();
+    // Unknown, as on the tenant list: not $0.00.
+    expect(screen.getByText('Balance (no activity)').nextSibling).toHaveTextContent('—');
 });
 
 test('a failed ledger request shows an error', async () => {
@@ -222,7 +225,7 @@ test('a date range refetches the ledger and shows the opening balance', async ()
         '/api/tenants/11/ledger/?start=2023-01-05&end=2023-01-31': ranged,
     });
     const dialog = await openDaisy();
-    await within(dialog).findByText('Total charges');
+    await within(dialog).findByText('Net charges');
 
     fireEvent.change(within(dialog).getByLabelText('From'), { target: { value: '2023-01-05' } });
     fireEvent.change(within(dialog).getByLabelText('To'), { target: { value: '2023-01-31' } });
@@ -231,12 +234,12 @@ test('a date range refetches the ledger and shows the opening balance', async ()
     const rows = within(dialog).getAllByRole('row').slice(1);
     expect(cells(rows[0])).toEqual(['01/05/2023', 'Opening balance', '', '', '$1,420.00']);
     expect(rows).toHaveLength(3);
-    expect(within(dialog).getByText('Charges in period')).toBeInTheDocument();
+    expect(within(dialog).getByText('Net charges in period')).toBeInTheDocument();
     // The export covers the same period as the screen.
     downloadFile.mockResolvedValue();
     userEvent.click(within(dialog).getByRole('button', { name: 'Export CSV' }));
     expect(downloadFile).toHaveBeenCalledWith(
-        '/api/tenants/11/ledger.csv?start=2023-01-05&end=2023-01-31', 'ledger-tenant-11.csv',
+        '/api/tenants/11/ledger.csv?start=2023-01-05&end=2023-01-31', 'ledger.csv',
     );
 });
 
@@ -274,4 +277,91 @@ test('focus moves into the ledger on open and back to the button on close', asyn
 
     userEvent.keyboard('{Escape}');
     await waitFor(() => expect(open).toHaveFocus());
+});
+
+test('the ledger separates the deposit held from what the tenant owes', async () => {
+    mockApi({
+        '/api/tenants/': tenants,
+        '/api/tenants/11/ledger/': makeLedger(tenants[0], {
+            ...ledger,
+            rent_and_fees_receivable: '620.00', deposit_due: '800.00', deposit_held: '0.00', balance: '1420.00',
+            entries: [
+                { id: 1, pms_id: '1', date: '2022-12-20', description: 'Security Deposit Charge', type: 'charge', category: 'deposit', amount: '800.00', running_balance: '800.00' },
+                { id: 2, pms_id: '2', date: '2023-01-01', description: 'Rent Charge - January', type: 'charge', category: 'rent_and_fees', amount: '620.00', running_balance: '1420.00' },
+            ],
+        }),
+    });
+    const dialog = await openDaisy();
+
+    const balance = (await within(dialog).findByText('Balance due')).parentElement;
+    expect(balance).toHaveTextContent('Rent and fees $620.00, deposit $800.00');
+    expect(within(dialog).getByText('Deposit held').nextSibling).toHaveTextContent('$0.00');
+    // Deposit entries are marked in the table; rent entries are not.
+    expect(within(within(dialog).getByText('Security Deposit Charge').closest('tr')).getByText('Deposit')).toBeInTheDocument();
+    expect(within(within(dialog).getByText('Rent Charge - January').closest('tr')).queryByText('Deposit')).not.toBeInTheDocument();
+});
+
+test('dragging across the balance chart selects that period', async () => {
+    mockApi({
+        '/api/tenants/': tenants,
+        '/api/tenants/11/ledger/': ledger,
+        '/api/tenants/11/ledger/?start=2023-01-02&end=2023-01-07': makeLedger(tenants[0], {
+            ...ledger, start: '2023-01-02', end: '2023-01-07', opening_balance: '1500.00', entries: ledger.entries.slice(1),
+        }),
+    });
+    const dialog = await openDaisy();
+    const chart = await within(dialog).findByRole('img');
+    // The chart is 720 units wide; give it a matching box so pointer
+    // positions map straight onto it. Entries are on Jan 1, 2, 5 and 7.
+    chart.getBoundingClientRect = () => ({ left: 0, top: 0, width: 720, height: 150 });
+
+    fireEvent.mouseDown(chart, { clientX: 170 });
+    fireEvent.mouseMove(chart, { clientX: 700 });
+    fireEvent.mouseUp(chart, { clientX: 700 });
+
+    await waitFor(() => expect(within(dialog).getByLabelText('From')).toHaveValue('2023-01-02'));
+    expect(within(dialog).getByLabelText('To')).toHaveValue('2023-01-07');
+    expect(await within(dialog).findByText('Balance as of 01/07/2023')).toBeInTheDocument();
+});
+
+test('a click on the chart without dragging does not change the period', async () => {
+    mockApi({ '/api/tenants/': tenants, '/api/tenants/11/ledger/': ledger });
+    const dialog = await openDaisy();
+    const chart = await within(dialog).findByRole('img');
+    chart.getBoundingClientRect = () => ({ left: 0, top: 0, width: 720, height: 150 });
+
+    fireEvent.mouseDown(chart, { clientX: 400 });
+    fireEvent.mouseUp(chart, { clientX: 400 });
+
+    expect(within(dialog).getByLabelText('From')).toHaveValue('');
+    expect(within(dialog).getByLabelText('To')).toHaveValue('');
+});
+
+test('Tab stays inside the open ledger', async () => {
+    mockApi({ '/api/tenants/': tenants, '/api/tenants/11/ledger/': ledger });
+    const dialog = await openDaisy();
+    await within(dialog).findByText('Net charges');
+
+    // From the heading, Shift+Tab wraps to the last control in the dialog
+    // rather than escaping to the page behind it.
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(dialog).toContainElement(document.activeElement);
+    expect(document.activeElement).not.toBe(within(dialog).getByRole('heading', { level: 2 }));
+
+    // And Tab from the last control wraps to the first.
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Close' }));
+});
+
+test('a period chart starts from the opening balance', async () => {
+    mockApi({
+        '/api/tenants/': tenants,
+        '/api/tenants/11/ledger/': makeLedger(tenants[0], {
+            ...ledger, start: '2023-01-05', opening_balance: '1420.00', entries: ledger.entries.slice(2),
+        }),
+    });
+    const dialog = await openDaisy();
+
+    expect(await within(dialog).findByRole('img'))
+        .toHaveAccessibleName('Balance from 01/05/2023 to 01/07/2023, ending at $1,420.00');
 });

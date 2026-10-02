@@ -26,6 +26,7 @@ curl -sS 'https://kpsaflrfjmhwomxiqrtiplvqem0hfmec.lambda-url.us-east-2.on.aws/a
 | Ledgers where date-then-id order differs from PMS order | 0 | `jq '[.[] \| select((.ledger \| map([.date, (.id \| tonumber)])) != (.ledger \| map([.date, (.id \| tonumber)]) \| sort))] \| length' pms.json` |
 | Tenants with a balance due / settled / in credit | 155 / 25 / 20 | `jq '[.[] \| .ledger \| map(if .type == "payment" then -.amount else .amount end) \| add] \| [map(select(. > 0)), map(select(. == 0)), map(select(. < 0))] \| map(length)' pms.json` |
 | Sum of all balances | 449,037 | `jq '[.[].ledger[] \| if .type == "payment" then -.amount else .amount end] \| add' pms.json` |
+| Security deposit entries | 200 charges and 200 payments, 208,250 each | `jq '[.[].ledger[] \| select(.description \| test("deposit"; "i"))] \| group_by(.description) \| map({d: .[0].description, n: length, total: (map(.amount) \| add)})' pms.json` |
 | Naive sum of amounts, ignoring type | 5,198,353 | `jq '[.[].ledger[].amount] \| add' pms.json` |
 
 ## What the negative amounts are

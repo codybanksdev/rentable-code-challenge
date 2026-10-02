@@ -17,7 +17,7 @@ class TenantAdmin(admin.ModelAdmin):
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ['date', 'tenant', 'description', 'type', 'amount', 'pms_id', 'removed_from_pms_at']
-    list_filter = ['type', 'removed_from_pms_at']
+    list_display = ['date', 'tenant', 'description', 'type', 'category', 'amount', 'pms_id', 'removed_from_pms_at']
+    list_filter = ['type', 'category', 'removed_from_pms_at']
     search_fields = ['description', 'tenant__name', 'pms_id']
     date_hierarchy = 'date'

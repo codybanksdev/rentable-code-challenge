@@ -27,6 +27,14 @@ class Ledger:
     total_payments: Decimal
     # The balance after the last entry shown: the balance as of `end`.
     balance: Decimal
+    # `balance` split by what kind of money it is, as of `end`:
+    # rent and fees the tenant owes, and security deposit the tenant still
+    # owes. They add up to `balance`.
+    rent_and_fees_receivable: Decimal
+    deposit_due: Decimal
+    # Deposit money received and not refunded, as of `end`. This is the
+    # tenant's money, held by the landlord: a liability, not a receivable.
+    deposit_held: Decimal
     # Entries the PMS has since removed. Listed for audit, counted nowhere.
     removed_entries: list
 
@@ -59,6 +67,8 @@ def build_ledger(tenant, start=None, end=None):
     entries = []
     removed_entries = []
     balance = ZERO
+    deposit_due = ZERO
+    deposit_held = ZERO
     for transaction in transactions:
         if transaction.removed_from_pms_at is not None:
             removed_entries.append(transaction)
@@ -66,6 +76,12 @@ def build_ledger(tenant, start=None, end=None):
         if end is not None and transaction.date > end:
             continue
         balance += transaction.balance_effect
+        # Standing figures, so they count everything up to `end`, including
+        # entries before `start`.
+        if transaction.category == Transaction.Category.DEPOSIT:
+            deposit_due += transaction.balance_effect
+            if transaction.type == Transaction.Type.PAYMENT:
+                deposit_held += transaction.amount
         if start is not None and transaction.date < start:
             opening_balance = balance
             continue
@@ -84,5 +100,8 @@ def build_ledger(tenant, start=None, end=None):
         total_charges=total_charges,
         total_payments=total_payments,
         balance=balance,
+        rent_and_fees_receivable=balance - deposit_due,
+        deposit_due=deposit_due,
+        deposit_held=deposit_held,
         removed_entries=removed_entries,
     )

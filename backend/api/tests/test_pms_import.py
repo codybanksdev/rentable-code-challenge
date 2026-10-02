@@ -7,6 +7,7 @@ import pytest
 import requests
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import IntegrityError
 
 from api.logging import JsonFormatter
 from api.models import Tenant, Transaction
@@ -244,6 +245,13 @@ def test_real_pms_sample_imports_to_the_hand_checked_balances():
         5: Decimal('5116.00'),  # Emma: partial payments and a returned payment
     }
     assert Tenant.objects.get(name='Charlie Chaplin').transactions.count() == 0
+    # Deposits are told apart from rent: Alice paid a $1,000 deposit.
+    alice = build_ledger(Tenant.objects.get(pms_tenant_id=1))
+    assert (alice.deposit_held, alice.deposit_due, alice.rent_and_fees_receivable) == (
+        Decimal('1000.00'), Decimal('0.00'), Decimal('0.00'),
+    )
+    held = sum(build_ledger(t).deposit_held for t in Tenant.objects.filter(pms_tenant_id__isnull=False))
+    assert held == Decimal('4450.00')  # 1,000 + 900 + 800 + 1,150 + 600
     assert Tenant.objects.get(name='Bob The Builder').unit == 'B205'
     first = build_ledger(Tenant.objects.get(pms_tenant_id=1)).entries[0].transaction
     assert (first.date.isoformat(), first.description) == ('2022-12-20', 'Security Deposit Charge')
@@ -284,3 +292,77 @@ def test_json_formatter_writes_the_event_and_its_fields_as_one_object():
     assert line['logger'] == 'api.services.pms_import'
     assert line['transactions_created'] == 12
     assert 'timestamp' in line
+
+
+def test_a_database_error_on_one_tenant_does_not_undo_the_tenants_before_it(monkeypatch):
+    real_sync = pms_import._sync_ledger
+
+    def sync_that_fails_for_bob(tenant, ledger, result, synced_at):
+        if tenant.pms_tenant_id == 2:
+            raise IntegrityError('constraint failed')
+        return real_sync(tenant, ledger, result, synced_at)
+
+    monkeypatch.setattr(pms_import, '_sync_ledger', sync_that_fails_for_bob)
+
+    result = import_tenants([
+        pms_tenant(1, 'Alice', [entry('1')]),
+        pms_tenant(2, 'Bob', [entry('1')]),
+        pms_tenant(3, 'Daisy', [entry('1')]),
+    ])
+
+    # Alice and Daisy are committed; Bob is rolled back and reported.
+    assert sorted(Tenant.objects.values_list('pms_tenant_id', flat=True)) == [1, 3]
+    assert Transaction.objects.count() == 2
+    assert len(result.errors) == 1 and 'PMS tenant 2' in result.errors[0]
+
+
+def test_a_negative_tenant_id_is_skipped_and_reported():
+    result = import_tenants([pms_tenant(-1, 'Negative', [entry('1')]), pms_tenant(1, 'Alice', [entry('1')])])
+
+    assert list(Tenant.objects.values_list('pms_tenant_id', flat=True)) == [1]
+    assert '-1' in result.errors[0]
+
+
+def test_an_amount_too_large_to_store_is_rejected_at_import():
+    result = import_tenants([pms_tenant(1, 'Alice', [entry('1', amount=1e9)])])
+
+    assert Transaction.objects.count() == 0
+    assert 'too large' in result.errors[0]
+
+
+def test_a_tenant_listed_twice_keeps_its_first_ledger():
+    result = import_tenants([
+        pms_tenant(1, 'Alice', [entry('1')]),
+        pms_tenant(1, 'Alice again', [entry('2')]),
+    ])
+
+    tenant = Tenant.objects.get(pms_tenant_id=1)
+    assert tenant.name == 'Alice'
+    assert list(tenant.transactions.values_list('pms_id', 'removed_from_pms_at')) == [('1', None)]
+    assert 'more than once' in result.errors[0]
+
+
+def test_a_rejected_ledger_keeps_its_previous_sync_time():
+    import_tenants([pms_tenant(1, 'Alice', [entry('1')])])
+    before = Tenant.objects.get(pms_tenant_id=1).ledger_synced_at
+
+    import_tenants([pms_tenant(1, 'Alice', [entry('1', type='refund')])])
+
+    assert Tenant.objects.get(pms_tenant_id=1).ledger_synced_at == before
+
+
+def test_an_empty_ledger_for_a_tenant_with_history_is_refused():
+    import_tenants([pms_tenant(1, 'Alice', [entry('1'), entry('2')])])
+
+    result = import_tenants([pms_tenant(1, 'Alice', [])])
+
+    # Nothing is marked removed on the strength of an empty response.
+    assert Transaction.objects.filter(removed_from_pms_at__isnull=True).count() == 2
+    assert 'empty ledger' in result.errors[0]
+
+
+def test_a_new_tenant_with_an_empty_ledger_is_fine():
+    result = import_tenants([pms_tenant(1, 'Alice', [])])
+
+    assert Tenant.objects.filter(pms_tenant_id=1).exists()
+    assert result.errors == []

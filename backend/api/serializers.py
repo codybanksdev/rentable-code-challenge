@@ -28,10 +28,11 @@ class TenantSummarySerializer(serializers.ModelSerializer):
 
 class TenantSerializer(TenantSummarySerializer):
     balance = serializers.SerializerMethodField()
+    deposit_held = serializers.SerializerMethodField()
     labels = LabelSerializer(many=True, read_only=True)
 
     class Meta(TenantSummarySerializer.Meta):
-        fields = TenantSummarySerializer.Meta.fields + ['balance', 'labels']
+        fields = TenantSummarySerializer.Meta.fields + ['balance', 'deposit_held', 'labels']
 
     def get_balance(self, tenant):
         """The tenant's balance, or null when there is nothing to base one on.
@@ -44,10 +45,13 @@ class TenantSerializer(TenantSummarySerializer):
             return '0.00' if tenant.pms_tenant_id is not None else None
         return str(tenant.balance.quantize(CENT))
 
+    def get_deposit_held(self, tenant):
+        return str((tenant.deposit_held or Decimal('0')).quantize(CENT))
+
 class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction
-        fields = ['id', 'pms_id', 'tenant', 'date', 'description', 'type', 'amount', 'removed_from_pms_at']
+        fields = ['id', 'pms_id', 'tenant', 'date', 'description', 'type', 'category', 'amount', 'removed_from_pms_at']
 
 class LedgerEntrySerializer(serializers.Serializer):
     id = serializers.IntegerField(source='transaction.id')
@@ -55,6 +59,7 @@ class LedgerEntrySerializer(serializers.Serializer):
     date = serializers.DateField(source='transaction.date')
     description = serializers.CharField(source='transaction.description')
     type = serializers.CharField(source='transaction.type')
+    category = serializers.CharField(source='transaction.category')
     amount = serializers.DecimalField(source='transaction.amount', max_digits=10, decimal_places=2)
     running_balance = serializers.DecimalField(max_digits=12, decimal_places=2)
 
@@ -66,6 +71,9 @@ class LedgerSerializer(serializers.Serializer):
     total_charges = serializers.DecimalField(max_digits=12, decimal_places=2)
     total_payments = serializers.DecimalField(max_digits=12, decimal_places=2)
     balance = serializers.DecimalField(max_digits=12, decimal_places=2)
+    rent_and_fees_receivable = serializers.DecimalField(max_digits=12, decimal_places=2)
+    deposit_due = serializers.DecimalField(max_digits=12, decimal_places=2)
+    deposit_held = serializers.DecimalField(max_digits=12, decimal_places=2)
     entries = LedgerEntrySerializer(many=True)
     removed_entries = TransactionSerializer(many=True)
 

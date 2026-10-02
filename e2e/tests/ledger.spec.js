@@ -25,7 +25,7 @@ function ledgerRows(dialog) {
 
 test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
+    await expect(page.getByRole('status')).toHaveText(/^Showing \d+ of \d+ tenants$/);
 });
 
 test('the tenant list shows every tenant with a balance', async ({ page }) => {
@@ -39,7 +39,8 @@ test('the tenant list shows every tenant with a balance', async ({ page }) => {
     // neither an id nor a balance, rather than a misleading $0.00.
     await expect(rowFor(page, 'Daisy Ridley').locator('td')).toHaveText(['3', 'Daisy Ridley', 'C303', '$1,240.00', 'Edit', 'View Ledger']);
     await expect(rowFor(page, 'Charlie Chaplin').locator('td')).toHaveText(['—', 'Charlie Chaplin', 'C303', '—', 'Edit', 'View Ledger']);
-    await expect(page.getByText(/^Ledgers last synced from the PMS: /)).toBeVisible();
+    // Charlie has never been synced, and the list says so.
+    await expect(page.getByText(/^Most recent ledger sync from the PMS: .* 1 never synced\.$/)).toBeVisible();
 });
 
 test('View Ledger shows that tenant\'s transactions with a running balance', async ({ page }) => {
@@ -52,9 +53,9 @@ test('View Ledger shows that tenant\'s transactions with a running balance', asy
     // A credit arrives from the PMS as a negative charge and lowers the balance.
     const credit = ledgerRows(dialog).filter({ hasText: 'Utility Credit' });
     await expect(credit.locator('td')).toHaveText(['03/05/2023', 'Utility Credit', '($80.00)', '', '$1,240.00']);
-    await expect(dialog.locator('.ledger-balance')).toHaveText('Balance due$1,240.00');
-    await expect(dialog.locator('.ledger-summary')).toContainText('Total charges$4,720.00');
-    await expect(dialog.locator('.ledger-summary')).toContainText('Total payments$3,480.00');
+    await expect(dialog.locator('.ledger-balance')).toContainText('Balance due$1,240.00');
+    await expect(dialog.locator('.ledger-summary')).toContainText('Net charges$4,720.00');
+    await expect(dialog.locator('.ledger-summary')).toContainText('Net payments$3,480.00');
 });
 
 test('a returned payment adds back to the balance', async ({ page }) => {
@@ -62,7 +63,7 @@ test('a returned payment adds back to the balance', async ({ page }) => {
 
     const returned = ledgerRows(dialog).filter({ hasText: 'Returned Payment - NSF' });
     await expect(returned.locator('td').nth(3)).toHaveText('($1,375.00)');
-    await expect(dialog.locator('.ledger-balance')).toHaveText('Paid in full$0.00');
+    await expect(dialog.locator('.ledger-balance')).toContainText('Paid in full$0.00');
 });
 
 test('entries are in date order even when PMS ids are not', async ({ page }) => {
@@ -184,13 +185,13 @@ test('the Insights tab charts the portfolio', async ({ page }) => {
         'Emma Mitchell (F508)$5,116.00', 'Bob The Builder (B205)$2,425.00', 'Daisy Ridley (C303)$1,240.00',
     ]);
 
-    const monthly = page.getByRole('region', { name: 'Charges and payments by month' });
+    const monthly = page.getByRole('region', { name: 'Net charges and payments by month' });
     await monthly.locator('rect[data-month="2023-01"]').hover();
     await expect(monthly.getByRole('status')).toContainText('Jan 2023');
-    await expect(monthly.getByRole('status')).toContainText('Charges:');
+    await expect(monthly.getByRole('status')).toContainText('Net charges:');
 
     await page.getByRole('tab', { name: 'Tenants' }).click();
-    await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible();
+    await expect(page.getByRole('status')).toHaveText('Showing 6 of 6 tenants');
 });
 
 test('a name under Largest balances due opens that tenant\'s ledger', async ({ page }) => {
@@ -201,7 +202,7 @@ test('a name under Largest balances due opens that tenant\'s ledger', async ({ p
 
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('heading', { level: 2 })).toHaveText('Ledger: Emma Mitchell (Unit F508)');
-    await expect(dialog.locator('.ledger-balance')).toHaveText('Balance due$5,116.00');
+    await expect(dialog.locator('.ledger-balance')).toContainText('Balance due$5,116.00');
     // Same table styling as when it is opened from the tenant list.
     await expect(dialog.getByRole('columnheader', { name: 'Description' })).toHaveCSS('position', 'sticky');
 
@@ -237,11 +238,11 @@ test('a date range shows an opening balance and the balance as of the end date',
     // Before February she owed $20.00 (a $100 parking fee less an $80 payment).
     await expect(ledgerRows(dialog).first().locator('td')).toHaveText(['02/01/2023', 'Opening balance', '', '', '$20.00']);
     await expect(ledgerRows(dialog)).toHaveCount(3);
-    await expect(dialog.locator('.ledger-balance')).toHaveText('Balance as of 02/28/2023$20.00');
+    await expect(dialog.locator('.ledger-balance')).toContainText('Balance as of 02/28/2023$20.00');
 
     await dialog.getByRole('button', { name: 'All dates' }).click();
     await expect(ledgerRows(dialog)).toHaveCount(10);
-    await expect(dialog.locator('.ledger-balance')).toHaveText('Balance due$1,240.00');
+    await expect(dialog.locator('.ledger-balance')).toContainText('Balance due$1,240.00');
 });
 
 test('Export CSV downloads the ledger that is on screen', async ({ page }) => {
@@ -254,13 +255,13 @@ test('Export CSV downloads the ledger that is on screen', async ({ page }) => {
         dialog.getByRole('button', { name: 'Export CSV' }).click(),
     ]);
 
-    expect(download.suggestedFilename()).toMatch(/^ledger-tenant-\d+\.csv$/);
+    expect(download.suggestedFilename()).toBe('ledger-pms-3.csv');
     const lines = require('fs').readFileSync(await download.path(), 'utf8').trim().split(/\r?\n/);
     expect(lines).toEqual([
-        'Date,Description,Type,Charge,Payment,Balance,PMS transaction id',
-        '2023-03-01,Opening balance,,,,20.00,',
-        '2023-03-01,Rent Charge - March,charge,1300.00,,1320.00,30',
-        '2023-03-05,Utility Credit,charge,-80.00,,1240.00,20',
+        'Date,Description,Type,Category,Charge,Payment,Balance,PMS transaction id',
+        '2023-03-01,Opening balance,,,,,20.00,',
+        '2023-03-01,Rent Charge - March,charge,Rent and fees,1300.00,,1320.00,30',
+        '2023-03-05,Utility Credit,charge,Rent and fees,-80.00,,1240.00,20',
     ]);
 });
 
@@ -272,4 +273,54 @@ test('opening the ledger moves focus into it and closing returns it', async ({ p
     await expect(page.getByRole('dialog').getByRole('heading', { level: 2 })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(button).toBeFocused();
+});
+
+test('the ledger separates the deposit held from the balance owed', async ({ page }) => {
+    const dialog = await openLedger(page, 'Daisy Ridley');
+
+    // She owes $1,240 of rent and fees. Her $800 deposit is paid, so it is
+    // held for her and is no part of what she owes.
+    await expect(dialog.locator('.ledger-balance')).toContainText('Rent and fees $1,240.00');
+    await expect(dialog.locator('.ledger-balance')).not.toContainText('deposit');
+    await expect(dialog.locator('.ledger-summary')).toContainText('Deposit held$800.00');
+    await expect(ledgerRows(dialog).nth(0)).toContainText('Security Deposit ChargeDeposit');
+    await expect(ledgerRows(dialog).nth(2).locator('.badge')).toHaveCount(0);
+
+    // On the day after the deposit was charged it had not been paid yet:
+    // it was owed, and nothing was held.
+    await dialog.getByLabel('To', { exact: true }).fill('2022-12-21');
+    await expect(dialog.locator('.ledger-balance')).toContainText('Balance as of 12/21/2022$800.00');
+    await expect(dialog.locator('.ledger-balance')).toContainText('Rent and fees $0.00, deposit $800.00');
+    await expect(dialog.locator('.ledger-summary')).toContainText('Deposit held$0.00');
+});
+
+test('Insights totals the deposits held', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Insights' }).click();
+
+    // 1,000 + 900 + 800 + 1,150 + 600 for the five PMS tenants.
+    const tile = page.locator('.stat-tile').filter({ hasText: 'Deposits held' });
+    await expect(tile).toContainText('$4,450.00');
+    await expect(tile).toContainText('for 5 tenants');
+});
+
+test('dragging across the balance chart narrows the ledger to that period', async ({ page }) => {
+    const dialog = await openLedger(page, 'Emma Mitchell');
+    await expect(ledgerRows(dialog).first()).toContainText('Security Deposit Charge');
+    const rowsBefore = await ledgerRows(dialog).count();
+    const box = await dialog.getByRole('region', { name: 'Balance over time' }).locator('svg').boundingBox();
+    const y = box.y + box.height / 2;
+
+    await page.mouse.move(box.x + box.width * 0.4, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.7, y, { steps: 5 });
+    await page.mouse.up();
+
+    await expect(dialog.getByLabel('From', { exact: true })).not.toHaveValue('');
+    await expect(dialog.getByLabel('To', { exact: true })).not.toHaveValue('');
+    await expect(ledgerRows(dialog).first()).toContainText('Opening balance');
+    await expect.poll(() => ledgerRows(dialog).count()).toBeLessThan(rowsBefore);
+    await expect(dialog.locator('.ledger-balance')).toContainText('Balance as of');
+
+    await dialog.getByRole('button', { name: 'All dates' }).click();
+    await expect(ledgerRows(dialog)).toHaveCount(rowsBefore);
 });

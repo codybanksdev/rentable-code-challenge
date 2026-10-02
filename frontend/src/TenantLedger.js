@@ -1,14 +1,22 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import BalanceChart from './BalanceChart';
 import { downloadFile } from './download';
 import { formatDate, formatDateTime, formatMoney } from './format';
 import { tenancy } from './ledgerStats';
+import { useDialog } from './useDialog';
+
+// Nothing on file at all: no entries, no period that could be hiding them,
+// and nothing that was removed from the PMS.
+function isEmpty(ledger) {
+    return ledger.entries.length === 0 && !ledger.start && !ledger.end
+        && ledger.removed_entries.length === 0;
+}
 
 function balanceLabel(ledger) {
     if (ledger.end) return `Balance as of ${formatDate(ledger.end)}`;
     // An empty ledger is not "paid in full": nothing was ever billed, or the
     // tenant has no PMS record to import from.
-    if (ledger.entries.length === 0 && !ledger.start) return 'Balance (no activity)';
+    if (isEmpty(ledger)) return 'Balance (no activity)';
     const value = Number(ledger.balance);
     if (value > 0) return 'Balance due';
     if (value < 0) return 'Credit balance';
@@ -31,7 +39,7 @@ function TenantLedger({ tenant, onClose }) {
     const [ledger, setLedger] = useState(null);
     const [error, setError] = useState(null);
     const [range, setRange] = useState({ start: '', end: '' });
-    const headingRef = useRef(null);
+    const { dialogRef, headingRef } = useDialog(onClose);
     const query = rangeQuery(range);
 
     useEffect(() => {
@@ -58,40 +66,31 @@ function TenantLedger({ tenant, onClose }) {
         return () => { ignore = true; };
     }, [tenant.id, query]);
 
-    useEffect(() => {
-        const onKeyDown = event => {
-            if (event.key === 'Escape') onClose();
-        };
-        document.addEventListener('keydown', onKeyDown);
-        return () => document.removeEventListener('keydown', onKeyDown);
-    }, [onClose]);
-
-    // Move focus into the dialog when it opens and hand it back to whatever
-    // opened it on close, so keyboard and screen reader users keep their place.
-    useEffect(() => {
-        const opener = document.activeElement;
-        headingRef.current.focus();
-        return () => {
-            if (opener && opener.focus) opener.focus();
-        };
-    }, []);
-
     // Exports the same period that is on screen.
     const exportCsv = () => {
-        downloadFile(`/api/tenants/${tenant.id}/ledger.csv${query}`, `ledger-tenant-${tenant.id}.csv`)
+        downloadFile(`/api/tenants/${tenant.id}/ledger.csv${query}`, 'ledger.csv')
             .catch(error => {
                 console.error("Error exporting ledger:", error);
-                setError(error);
+                setError(new Error(`Export failed. ${error.message}`));
             });
     };
 
     const setRangeField = name => event => setRange({ ...range, [name]: event.target.value });
     const tenure = ledger && tenancy(ledger.entries);
+    // Labels follow the response on screen, not the range just asked for, so
+    // numbers are never shown under a heading for a period they do not cover.
+    const ranged = Boolean(ledger && (ledger.start || ledger.end));
+    const unknownBalance = Boolean(ledger && isEmpty(ledger) && ledger.tenant.pms_tenant_id === null);
+    // A period's chart starts from the balance carried into it, like the table.
+    const chartEntries = ledger && ledger.start
+        ? [{ date: ledger.start, description: 'Opening balance', running_balance: ledger.opening_balance }, ...ledger.entries]
+        : ledger && ledger.entries;
 
     return (
         <div className="ledger-backdrop" onClick={onClose}>
             <div
                 className="ledger"
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="ledger-title"
@@ -109,7 +108,12 @@ function TenantLedger({ tenant, onClose }) {
                         && ` · Synced from the PMS ${formatDateTime(ledger.tenant.ledger_synced_at)}`}
                 </p>
 
-                {error && <p role="alert">Error loading ledger: {error.message}</p>}
+                {error && (
+                    <p role="alert">
+                        Error loading ledger: {error.message}
+                        {ledger && ' The figures below are from before this error.'}
+                    </p>
+                )}
                 {!error && !ledger && <p>Loading ledger...</p>}
                 {ledger && (
                     <>
@@ -129,20 +133,33 @@ function TenantLedger({ tenant, onClose }) {
                         </div>
                         <dl className="ledger-summary">
                             <div>
-                                <dt>{query ? 'Charges in period' : 'Total charges'}</dt>
+                                <dt>{ranged ? 'Net charges in period' : 'Net charges'}</dt>
                                 <dd>{formatMoney(ledger.total_charges)}</dd>
                             </div>
                             <div>
-                                <dt>{query ? 'Payments in period' : 'Total payments'}</dt>
+                                <dt>{ranged ? 'Net payments in period' : 'Net payments'}</dt>
                                 <dd>{formatMoney(ledger.total_payments)}</dd>
                             </div>
                             <div className="ledger-balance">
                                 <dt>{balanceLabel(ledger)}</dt>
-                                <dd>{formatMoney(ledger.balance)}</dd>
+                                {/* With no PMS record and nothing on file the balance is
+                                    unknown, as on the tenant list, not $0.00. */}
+                                <dd>{unknownBalance ? '—' : formatMoney(ledger.balance)}</dd>
+                                {/* What the balance is made of. A deposit still owed is
+                                    shown only when there is one. */}
+                                <dd className="ledger-summary-detail">
+                                    Rent and fees {formatMoney(ledger.rent_and_fees_receivable)}
+                                    {Number(ledger.deposit_due) !== 0 && `, deposit ${formatMoney(ledger.deposit_due)}`}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>Deposit held</dt>
+                                <dd>{formatMoney(ledger.deposit_held)}</dd>
+                                <dd className="ledger-summary-detail">The tenant's money, not part of the balance</dd>
                             </div>
                             {tenure && (
                                 <div>
-                                    <dt>{query ? 'Activity in period' : 'Tenant for'}</dt>
+                                    <dt>{ranged ? 'Activity in period' : 'Tenant for'}</dt>
                                     <dd>{tenancyLabel(tenure)}</dd>
                                     <dd className="ledger-summary-detail">
                                         {formatDate(tenure.first)} to {formatDate(tenure.last)}, by ledger activity
@@ -150,8 +167,11 @@ function TenantLedger({ tenant, onClose }) {
                                 </div>
                             )}
                         </dl>
-                        <BalanceChart entries={ledger.entries} />
-                        {ledger.entries.length === 0 && !ledger.start ? (
+                        <BalanceChart
+                            entries={chartEntries}
+                            onSelectRange={(start, end) => setRange({ start, end })}
+                        />
+                        {isEmpty(ledger) ? (
                             <p>
                                 No transactions found for this tenant.
                                 {ledger.tenant.pms_tenant_id === null && ' This tenant is not linked to a PMS record.'}
@@ -184,7 +204,10 @@ function TenantLedger({ tenant, onClose }) {
                                         {ledger.entries.map(entry => (
                                             <tr key={entry.id}>
                                                 <td>{formatDate(entry.date)}</td>
-                                                <td>{entry.description}</td>
+                                                <td>
+                                                    {entry.description}
+                                                    {entry.category === 'deposit' && <span className="badge">Deposit</span>}
+                                                </td>
                                                 <td className="money">
                                                     {entry.type === 'charge' ? formatMoney(entry.amount) : ''}
                                                 </td>

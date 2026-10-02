@@ -56,14 +56,18 @@ function TenantList() {
     const filtered = Object.keys(NO_FILTERS).some(name => filters[name] !== '');
     // ISO timestamps sort as text; the newest is when the PMS was last read.
     const lastSynced = tenants.map(tenant => tenant.ledger_synced_at).filter(Boolean).sort().pop();
+    const neverSynced = tenants.filter(tenant => !tenant.ledger_synced_at).length;
 
     return (
         <div className="tenant-list">
             <h2 className="visually-hidden">Tenants</h2>
             <p className="sync-status">
                 {lastSynced
-                    ? `Ledgers last synced from the PMS: ${formatDateTime(lastSynced)}`
+                    ? `Most recent ledger sync from the PMS: ${formatDateTime(lastSynced)}.`
                     : 'Ledgers have not been synced from the PMS yet.'}
+                {/* The newest time says nothing about the rest, so say how
+                    many have never been synced at all. */}
+                {lastSynced && neverSynced > 0 && ` ${neverSynced} never synced.`}
             </p>
             {tenants.length === 0 ? (
                 <p>No tenants found.</p>

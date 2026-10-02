@@ -27,7 +27,9 @@ flowchart TD
     J -- no --> M[Create a new tenant] --> L
     L --> N{Every ledger entry valid?<br/>known type, ISO date,<br/>whole cents, unique id}
     N -- no --> O[Roll back this tenant] --> R
-    N -- yes --> P["Sync by (tenant, pms_id):<br/>create new, update changed,<br/>mark entries the PMS no longer has as removed"]
+    N -- yes --> E2{PMS ledger empty but<br/>entries are on file?}
+    E2 -- yes --> O
+    E2 -- no --> P["Sync by (tenant, pms_id):<br/>create new, update changed,<br/>mark entries the PMS no longer has as removed"]
     P --> P2[Stamp ledger_synced_at]
     P2 --> Q[Commit]
     Q --> F
@@ -78,7 +80,7 @@ sequenceDiagram
     U->>R: Open the Insights tab
     R->>D: GET /api/tenants/ and<br/>GET /api/reports/monthly-activity/
     D-->>R: balances, monthly charges and payments
-    R-->>U: Totals, monthly trend, balance by building,<br/>largest balances due
+    R-->>U: Totals, monthly trend, balance by unit prefix,<br/>largest balances due
 ```
 
 Code: views in `backend/api/views.py`, balance rules in
@@ -113,6 +115,7 @@ erDiagram
         string description
         string type "charge or payment"
         decimal amount "as the PMS sends it, sign included"
+        string category "rent_and_fees or deposit, set by the import"
         datetime removed_from_pms_at "set when the PMS drops it"
     }
 ```
@@ -126,7 +129,7 @@ the transactions every time, so it cannot drift from them.
 effect of an entry = amount    when type is "charge"
                    = -amount   when type is "payment"
 
-balance = sum of effects = total charges - total payments
+balance = sum of effects = net charges - net payments
 ```
 
 Amounts keep the sign the PMS sends, and the type decides the direction:
@@ -142,3 +145,7 @@ A positive balance is shown as "Balance due", a negative one as "Credit
 balance", zero as "Paid in full". A tenant with no transactions at all is
 shown as "no activity" rather than "Paid in full". Entries marked as removed
 from the PMS are left out of the balance.
+
+The balance is also shown split into rent and fees owed and any security
+deposit still owed. Deposit money already received is reported separately as
+"Deposit held": it belongs to the tenant, so it is never part of the balance.

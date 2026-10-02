@@ -46,11 +46,11 @@ test('the Insights tab shows portfolio totals and charts', async () => {
     expect(screen.getByText('Total outstanding').nextSibling).toHaveTextContent('$2,425.00');
     expect(screen.getByText('Credits held').nextSibling).toHaveTextContent('$550.00');
 
-    const building = screen.getByRole('region', { name: 'Outstanding balance by building' });
+    const building = screen.getByRole('region', { name: 'Outstanding balance by unit prefix' });
     expect(within(building).getAllByRole('listitem').map(item => item.textContent)).toEqual(['A$0.00', 'B$2,425.00']);
 
-    const monthly = screen.getByRole('region', { name: 'Charges and payments by month' });
-    expect(within(monthly).getByRole('img')).toHaveAccessibleName('Charges and payments by month, Jan 2023 to Feb 2023');
+    const monthly = screen.getByRole('region', { name: 'Net charges and payments by month' });
+    expect(within(monthly).getByRole('img')).toHaveAccessibleName('Net charges and payments by month, Jan 2023 to Feb 2023');
     // The same numbers are available as a table for anyone who cannot use the chart.
     const rows = within(monthly).getAllByRole('row', { hidden: true }).slice(1);
     expect(rows.map(row => row.textContent)).toEqual(['Jan 2023$3,000.00$1,000.00', 'Feb 2023$1,500.00($425.00)']);

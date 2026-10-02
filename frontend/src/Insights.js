@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import TenantLedger from './TenantLedger';
 import { axisMoney, niceLimit } from './chartScale';
 import { formatMoney } from './format';
-import { formatMonth, largestBalances, outstandingByBuilding, portfolioSummary } from './insightsData';
+import { formatMonth, largestBalances, outstandingByUnitPrefix, portfolioSummary } from './insightsData';
 
 const SERIES = [
-    { key: 'charges', label: 'Charges', color: '#2a78d6' },
-    { key: 'payments', label: 'Payments', color: '#eb6834' },
+    // Net: credits reduce charges and returned payments reduce payments.
+    { key: 'charges', label: 'Net charges', color: '#2a78d6' },
+    { key: 'payments', label: 'Net payments', color: '#eb6834' },
 ];
 
 function fetchJson(url) {
@@ -70,7 +71,7 @@ const PAD = { top: 16, right: 32, bottom: 28, left: 64 };
 
 function MonthlyActivityChart({ months }) {
     const [hovered, setHovered] = useState(null);
-    const title = 'Charges and payments by month';
+    const title = 'Net charges and payments by month';
     if (months.length === 0) {
         return <section className="chart" aria-label={title}><h3>{title}</h3><p>No transactions yet.</p></section>;
     }
@@ -161,8 +162,8 @@ function MonthlyActivityChart({ months }) {
                     <thead>
                         <tr>
                             <th>Month</th>
-                            <th className="money">Charges</th>
-                            <th className="money">Payments</th>
+                            <th className="money">Net charges</th>
+                            <th className="money">Net payments</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -222,6 +223,11 @@ function Insights() {
                     detail={`${summary.creditCount} tenants with a credit balance`}
                 />
                 <StatTile
+                    label="Deposits held"
+                    value={formatMoney(summary.depositsHeld)}
+                    detail={`for ${summary.depositCount} tenants; owed back to them`}
+                />
+                <StatTile
                     label="Settled"
                     value={summary.settledCount}
                     detail="tenants with a $0.00 balance"
@@ -229,8 +235,8 @@ function Insights() {
             </div>
             <MonthlyActivityChart months={data.months} />
             <BarList
-                title="Outstanding balance by building"
-                rows={outstandingByBuilding(data.tenants)}
+                title="Outstanding balance by unit prefix"
+                rows={outstandingByUnitPrefix(data.tenants)}
                 emptyText="No tenants yet."
             />
             <BarList

@@ -6,6 +6,9 @@ reconcile their books efficiently. Each idea says what it would let an
 accountant do, what it takes, and what has to be decided first.
 
 They are ordered by how directly they serve reconciliation, not by size.
+One item is not optional: authentication and customer scoping (8) comes
+before any real customer sees this, and before anything else here that
+writes data.
 
 ## 1. Record transactions here
 
@@ -101,19 +104,22 @@ descriptions ("Rent Charge - March", "Late Fee Charge"). A small
 description-to-category table, maintained by the customer, is safer than
 guessing.
 
-## 7. Security deposits held separately
+## 7. A fuller deposit ledger
 
-**What it enables.** A balance that separates rent receivable from deposits
-held. A deposit is a liability to the tenant, not income, and accountants
-keep it in a different account.
+**What it enables.** The deposit held is now shown apart from the balance
+(see `docs/decisions.md`). The next steps are the parts of deposit handling
+the PMS data does not show yet: at move-out, how much was refunded, how much
+was applied to damages or unpaid rent, and whether interest is owed. This is
+the area closest to Rentable's own product, which manages security deposits.
 
-This is the closest idea here to Rentable's own product, which manages
-security deposits: the ledger already carries every deposit charge and
-payment, so it could show what is held per tenant and across the portfolio.
+**What it takes.** The category rule recognises anything described as a
+security deposit, so refunds and applications will be counted correctly once
+the PMS sends them (a refund is a negative deposit payment). What is missing
+is a move-out date and a deposit disposition view: held, less deductions,
+equals refund due.
 
-**What it takes.** A category on each entry (see 6), then two subtotals on
-the ledger. Today the deposit charge and payment net to zero for every
-tenant, so the balance is right, but the totals include them.
+**Decide first.** Where the category should come from. Today it is read from
+the description, which is free text.
 
 ## 8. Authentication, roles and customer scoping
 

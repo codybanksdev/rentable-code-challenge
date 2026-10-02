@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import datetime
 
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -11,7 +11,7 @@ from api.serializers import (
     TenantSerializer, TransactionSerializer,
 )
 from api.services.ledger import build_ledger
-from api.services.ledger_csv import write_ledger_csv
+from api.services.ledger_csv import ledger_csv_filename, write_ledger_csv
 from api.services.reports import monthly_activity
 
 # Create your views here.
@@ -37,7 +37,8 @@ def _date_param(request, name):
     if not value:
         return None
     try:
-        return date.fromisoformat(value)
+        # strptime, not date.fromisoformat, which also accepts 20230105.
+        return datetime.strptime(value, '%Y-%m-%d').date()
     except ValueError:
         raise ValidationError({name: 'Use the format YYYY-MM-DD.'})
 
@@ -67,7 +68,7 @@ def tenant_ledger_csv(request, tenant_id):
     """
     ledger = _ledger_for_request(request, tenant_id)
     response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = f'attachment; filename="ledger-tenant-{ledger.tenant.pk}.csv"'
+    response['Content-Disposition'] = f'attachment; filename="{ledger_csv_filename(ledger)}"'
     write_ledger_csv(ledger, response)
     return response
 

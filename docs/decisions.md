@@ -80,7 +80,9 @@ timeout, and nothing wrapped the writes, so a failure midway left a partial
 import.
 
 **Now:** a 30 second timeout; fetch errors raise `CommandError` (non-zero
-exit); each tenant is written in its own database transaction; the command
+exit); each tenant is written and committed in its own database transaction,
+so a failure on one tenant (bad data, or an error from the database) leaves
+the others in place; the command
 prints what it created, updated and removed. `--dry-run` reports the same
 counts and writes nothing.
 
@@ -129,8 +131,11 @@ transactions and has to be maintained by every future write path.
 ### The running balance is computed in Python, on the server
 
 A ledger has at most 51 entries, so a loop is simpler to read and to explain
-than a SQL window function. It is done on the server in `Decimal` so no money
-arithmetic happens in JavaScript floats; the API sends money as strings.
+than a SQL window function. Balances are computed on the server in `Decimal`
+and sent as strings. The browser never computes a balance. It does add up
+already-computed balances for the Insights and Labels totals, which is exact
+for amounts in whole cents at this size and would move to the server with
+pagination.
 
 ### The import brings in every PMS tenant
 
@@ -168,6 +173,11 @@ stamped with `removed_from_pms_at`, and listed under "Removed from the PMS"
 in the ledger, so there is a record of why a balance changed. If the entry
 comes back, the stamp is cleared.
 
+One guard: if the PMS returns an empty ledger for a tenant who has entries on
+file, the import refuses that tenant and reports it. Every tenant in the PMS
+has a ledger, so an empty one is far more likely a bad response than a tenant
+whose whole history was voided, and acting on it would zero their balance.
+
 *Not taken:* never removing (the balance drifts); deleting the row. Deleting
 was the first implementation. An independent review pointed out that it
 destroys the evidence an accountant would need to explain a change between
@@ -198,11 +208,57 @@ tests and the end-to-end suite use
 to 5 exactly as the API returned them, so they run without the network and
 assert against real data.
 
+### Security deposits are reported apart from what the tenant owes
+
+A deposit is the tenant's money, held by the landlord: a liability, not
+income and not a receivable. The PMS puts deposit charges and payments in the
+same ledger as rent, so each entry now carries a category, and the ledger
+shows:
+
+- **Balance**, unchanged, with what it is made of: rent and fees, and any
+  deposit that has been charged but not yet paid.
+- **Deposit held**: deposit money actually received and not refunded. It is
+  shown beside the balance and is never added into it.
+
+Insights totals the deposits held across the portfolio ($208,250 for the 200
+PMS tenants).
+
+All three are standing figures, so with a date range they are as of the end
+date and include entries from before the start.
+
+The category comes from the description: anything containing "security
+deposit" is a deposit, everything else is rent and fees. That is the one
+place a description is read for meaning (`backend/api/services/categories.py`),
+and it never decides direction or amount. It matches all 400 deposit entries
+in the PMS and nothing else.
+
+*Not taken:* leaving deposits mixed in (the balance is right, but nothing
+says how much is being held); a full chart of accounts (the PMS gives nothing
+to map from). *Limit:* a description is free text. A real deployment should
+get the category from the PMS or from a mapping the customer maintains; the
+field is stored per entry so it can be corrected without changing code.
+"Net charges" and "Net payments" still include deposit entries, as the PMS
+presents them.
+
+### Charges and payments are shown net, and labelled net
+
+"Net charges" is charges less credits, and "Net payments" is payments less
+returned payments. A $1,420 payment that later bounces shows as net payments
+of $0.00, which is right for the balance but would be misleading under the
+word "total", so the labels say net. The entries themselves are all in the
+table.
+
+### "Unit prefix", not "building"
+
+The PMS calls the field a unit code and says nothing more. The filter and the
+Insights chart group by the code's leading letter and call it a unit prefix.
+It probably is a building; the data does not say so.
+
 ### A tenant with nothing on file has no balance
 
 A tenant with no PMS record and no transactions is returned with
 `balance: null` and shown as a dash. `$0.00` would say the account is
-settled, which nobody knows. For the same reason an empty ledger is labelled
+settled, which nobody knows. The ledger dialog shows the same dash. For the same reason an empty ledger is labelled
 "no activity" instead of "Paid in full".
 
 ### The tenant list shows the PMS id
@@ -272,8 +328,8 @@ thousand tenants this should move to query parameters and pagination.
 
 ### Charts are drawn without a chart library
 
-The Insights tab has three charts. They are plain SVG and CSS, about 150
-lines, rather than a new dependency. Each has the same numbers available as
+The charts are plain SVG and CSS (about 400 lines across `Insights.js`,
+`BalanceChart.js` and their helpers) rather than a new dependency. Each has the same numbers available as
 text or a table.
 
 "Total outstanding" adds up only tenants who owe money. It is not reduced by
@@ -295,8 +351,9 @@ another.
 
 ## Not done, and why
 
-- **Authentication and per-customer scoping.** The template has none; a real
-  ledger needs both before it is exposed.
+- **Authentication and per-customer scoping.** The template has none. This is
+  the first thing a real deployment needs: today anyone who can reach the API
+  can read every ledger and edit labels.
 - **Pagination.** 200 tenants and at most 51 entries per ledger.
 - **Scheduled imports.** The import is safe to run on a schedule, and each
   ledger shows when it was synced, but nothing schedules it.

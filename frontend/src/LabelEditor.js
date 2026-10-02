@@ -1,29 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import LabelChip from './LabelChip';
 import { sendJson } from './api';
+import { useDialog } from './useDialog';
 
 // Choose which labels a tenant has, or create a new label.
 function LabelEditor({ tenant, labels, onClose, onSaved, onLabelCreated }) {
     const [selected, setSelected] = useState(() => new Set(tenant.labels.map(label => label.id)));
     const [newLabel, setNewLabel] = useState({ name: '', color: '#2a78d6' });
     const [error, setError] = useState(null);
-    const headingRef = useRef(null);
-
-    useEffect(() => {
-        const onKeyDown = event => {
-            if (event.key === 'Escape') onClose();
-        };
-        document.addEventListener('keydown', onKeyDown);
-        return () => document.removeEventListener('keydown', onKeyDown);
-    }, [onClose]);
-
-    useEffect(() => {
-        const opener = document.activeElement;
-        headingRef.current.focus();
-        return () => {
-            if (opener && opener.focus) opener.focus();
-        };
-    }, []);
+    const { dialogRef, headingRef } = useDialog(onClose);
 
     const toggle = id => {
         const next = new Set(selected);
@@ -58,6 +43,7 @@ function LabelEditor({ tenant, labels, onClose, onSaved, onLabelCreated }) {
         <div className="ledger-backdrop" onClick={onClose}>
             <div
                 className="ledger label-editor"
+                ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="label-editor-title"

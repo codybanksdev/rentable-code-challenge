@@ -1,4 +1,4 @@
-import { formatMonth, largestBalances, outstandingByBuilding, portfolioSummary } from './insightsData';
+import { formatMonth, largestBalances, outstandingByUnitPrefix, portfolioSummary } from './insightsData';
 
 const tenants = [
     { id: 1, name: 'Alice', unit: 'A101', balance: '0.00' },
@@ -11,11 +11,12 @@ const tenants = [
 test('outstanding is what is owed, not netted against other tenants\' credits', () => {
     expect(portfolioSummary(tenants)).toEqual({
         outstanding: 3715, owingCount: 3, credit: -550, creditCount: 1, settledCount: 1,
+        depositsHeld: 0, depositCount: 0,
     });
 });
 
-test('building totals ignore credits and sort by building', () => {
-    expect(outstandingByBuilding(tenants)).toEqual([
+test('unit prefix totals ignore credits and sort by prefix', () => {
+    expect(outstandingByUnitPrefix(tenants)).toEqual([
         { label: 'A', value: 1240 },
         { label: 'B', value: 2425 },
         { label: 'Other', value: 50 },
@@ -38,4 +39,16 @@ test('a tenant with no balance on file is not counted as settled', () => {
 
     expect(summary.settledCount).toBe(1);
     expect(summary.outstanding).toBe(3715);
+});
+
+test('deposits held are totalled apart from what tenants owe', () => {
+    const summary = portfolioSummary([
+        { id: 1, balance: '300.00', deposit_held: '800.00' },
+        { id: 2, balance: '0.00', deposit_held: '1150.00' },
+        { id: 3, balance: null, deposit_held: '0.00' },
+    ]);
+
+    expect(summary.depositsHeld).toBe(1950);
+    expect(summary.depositCount).toBe(2);
+    expect(summary.outstanding).toBe(300);
 });

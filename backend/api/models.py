@@ -5,7 +5,8 @@ from django.db.models import Case, DecimalField, F, Q, Sum, When
 
 class TenantQuerySet(models.QuerySet):
     def with_balance(self):
-        """Annotate each tenant with `balance`: the amount they currently owe.
+        """Annotate each tenant with `balance`, the amount they currently owe,
+        and `deposit_held`, the security deposit being held for them.
 
         Charges add to the balance and payments reduce it. Amounts keep the
         sign the PMS sent, so a credit (negative charge) reduces the balance
@@ -27,7 +28,17 @@ class TenantQuerySet(models.QuerySet):
                     output_field=money,
                 ),
                 filter=Q(transactions__removed_from_pms_at__isnull=True),
-            )
+            ),
+            # Deposit money actually received, net of refunds. It is the
+            # tenant's money that the landlord is holding.
+            deposit_held=Sum(
+                'transactions__amount',
+                filter=Q(
+                    transactions__removed_from_pms_at__isnull=True,
+                    transactions__category=Transaction.Category.DEPOSIT,
+                    transactions__type=Transaction.Type.PAYMENT,
+                ),
+            ),
         )
 
 
@@ -74,6 +85,13 @@ class Transaction(models.Model):
         CHARGE = 'charge', 'Charge'
         PAYMENT = 'payment', 'Payment'
 
+    class Category(models.TextChoices):
+        # Rent, fees, utilities and their payments: money owed to the landlord.
+        RENT_AND_FEES = 'rent_and_fees', 'Rent and fees'
+        # Security deposit: the tenant's money, held by the landlord. A
+        # liability, kept apart from what the tenant owes.
+        DEPOSIT = 'deposit', 'Security deposit'
+
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='transactions')
     # The transaction's identifier in the PMS (a string in the API).
     pms_id = models.CharField(max_length=64)
@@ -83,6 +101,11 @@ class Transaction(models.Model):
     # Stored exactly as the PMS sends it. The sign is not the direction of the
     # entry -- `type` is. Use `balance_effect` when adding entries up.
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    # Which account the entry belongs to. Set by the import; see
+    # api/services/categories.py.
+    category = models.CharField(
+        max_length=16, choices=Category.choices, default=Category.RENT_AND_FEES,
+    )
     # Set when an import finds the PMS no longer has this entry. The row is
     # kept so there is a record of why a balance changed, but it no longer
     # counts toward the balance.

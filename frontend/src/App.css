@@ -449,8 +449,33 @@
   font-style: italic;
 }
 
+.badge {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid #9a9994;
+  border-radius: 10px;
+  font-size: 0.75em;
+  color: #52514e;
+}
+
 .ledger-section {
   margin-top: 16px;
+}
+
+.balance-chart svg {
+  cursor: crosshair;
+  user-select: none;
+}
+
+.chart-selection {
+  fill: #2a78d6;
+  opacity: 0.15;
+}
+
+.chart-hint {
+  margin: 2px 0 0;
+  font-size: 0.8em;
+  color: #52514e;
 }
 
 .ledger-section table {

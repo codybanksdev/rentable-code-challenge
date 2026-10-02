@@ -10,10 +10,12 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 import requests
+from django.db import Error as DatabaseError
 from django.db import transaction as db_transaction
 from django.utils import timezone
 
 from api.models import Tenant, Transaction
+from api.services.categories import categorize
 
 PMS_TENANTS_URL = (
     'https://kpsaflrfjmhwomxiqrtiplvqem0hfmec.lambda-url.us-east-2.on.aws'
@@ -21,9 +23,11 @@ PMS_TENANTS_URL = (
 )
 REQUEST_TIMEOUT_SECONDS = 30
 CENT = Decimal('0.01')
+# Transaction.amount holds 8 digits before the decimal point.
+MAX_AMOUNT = Decimal('99999999.99')
 
 logger = logging.getLogger(__name__)
-TRANSACTION_FIELDS = ['date', 'description', 'type', 'amount']
+TRANSACTION_FIELDS = ['date', 'description', 'type', 'amount', 'category']
 
 
 class PMSImportError(Exception):
@@ -100,12 +104,16 @@ def parse_ledger_entry(entry):
         amount = Decimal(str(entry['amount']))
         if not amount.is_finite() or amount != amount.quantize(CENT):
             raise InvalidLedgerEntry(f'amount {entry["amount"]!r} is not a whole number of cents')
+        if abs(amount) > MAX_AMOUNT:
+            raise InvalidLedgerEntry(f'amount {entry["amount"]!r} is too large to store')
+        description = entry.get('description') or ''
         return {
             'pms_id': str(pms_id),
             'date': date.fromisoformat(entry['date']),
-            'description': entry.get('description') or '',
+            'description': description,
             'type': entry_type,
             'amount': amount.quantize(CENT),
+            'category': categorize(description),
         }
     except InvalidLedgerEntry:
         raise
@@ -150,6 +158,14 @@ def _sync_ledger(tenant, ledger, result, synced_at):
         raise InvalidLedgerEntry('duplicate transaction id in ledger')
 
     existing = {t.pms_id: t for t in tenant.transactions.all()}
+    live = [t for t in existing.values() if t.removed_from_pms_at is None]
+    if live and not parsed:
+        # Every real tenant has a ledger. One that had entries and now has
+        # none looks like a bad response, and acting on it would zero the
+        # balance. Refuse, and let a person decide.
+        raise InvalidLedgerEntry(
+            f'the PMS returned an empty ledger but {len(live)} entries are on file'
+        )
     to_create, to_update = [], []
     for values in parsed:
         current = existing.pop(values['pms_id'], None)
@@ -189,10 +205,16 @@ def import_tenants(tenants_data, dry_run=False):
     With `dry_run`, everything runs and is counted, then rolled back.
     """
     started = time.monotonic()
-    with db_transaction.atomic():
-        result = _import_tenants(tenants_data)
-        if dry_run:
+    if dry_run:
+        # One outer transaction that is always rolled back. Each tenant's own
+        # atomic block becomes a savepoint inside it.
+        with db_transaction.atomic():
+            result = _import_tenants(tenants_data)
             db_transaction.set_rollback(True)
+    else:
+        # No outer transaction: each tenant commits on its own, so a failure
+        # partway through leaves the tenants already done in place.
+        result = _import_tenants(tenants_data)
     logger.info('pms.import.finished', extra={
         'dry_run': dry_run,
         'tenants_in_payload': len(tenants_data),
@@ -218,11 +240,18 @@ def _import_tenants(tenants_data):
     """
     result = ImportResult()
     synced_at = timezone.now()
+    seen = set()
     for tenant_data in tenants_data:
         pms_tenant_id = tenant_data.get('tenant_id') if isinstance(tenant_data, dict) else None
-        if not isinstance(pms_tenant_id, int) or isinstance(pms_tenant_id, bool):
+        if not isinstance(pms_tenant_id, int) or isinstance(pms_tenant_id, bool) or pms_tenant_id < 0:
             result.errors.append(f'Skipped a tenant with no usable tenant_id: {pms_tenant_id!r}')
             continue
+        if pms_tenant_id in seen:
+            # Syncing the second copy would mark the first copy's entries as
+            # removed. Keep the first and say so.
+            result.errors.append(f'PMS tenant {pms_tenant_id}: appears more than once. Only the first was used.')
+            continue
+        seen.add(pms_tenant_id)
         ledger = tenant_data.get('ledger')
         if not isinstance(ledger, list):
             result.errors.append(f'PMS tenant {pms_tenant_id}: response has no ledger. Skipped.')
@@ -232,13 +261,15 @@ def _import_tenants(tenants_data):
             with db_transaction.atomic():
                 tenant = _resolve_tenant(tenant_data, tenant_result)
                 _sync_ledger(tenant, ledger, tenant_result, synced_at)
-        except InvalidLedgerEntry as exc:
+        except (InvalidLedgerEntry, DatabaseError) as exc:
+            # The atomic block has already rolled this tenant back. A database
+            # error (a value the schema rejects) is held to one tenant too.
             logger.warning('pms.import.ledger_skipped', extra={
                 'pms_tenant_id': pms_tenant_id, 'reason': str(exc),
             })
             result.errors.append(f'PMS tenant {pms_tenant_id}: {exc}. Ledger left unchanged.')
             continue
-        # Only counted once the tenant's transaction has committed.
+        # Only counted once this tenant's block has completed.
         result.tenants_created += tenant_result.tenants_created
         result.tenants_linked += tenant_result.tenants_linked
         result.transactions_created += tenant_result.transactions_created

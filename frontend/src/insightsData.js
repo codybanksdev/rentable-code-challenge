@@ -17,16 +17,22 @@ export function portfolioSummary(tenants) {
         credit: sum(credits),
         creditCount: credits.length,
         settledCount: balances.length - owing.length - credits.length,
+        // Security deposits the landlord is holding for tenants: a liability,
+        // reported apart from what tenants owe.
+        depositsHeld: sum(tenants.map(tenant => Number(tenant.deposit_held || 0))),
+        depositCount: tenants.filter(tenant => Number(tenant.deposit_held || 0) > 0).length,
     };
 }
 
-// Outstanding balance per building (the unit's letter prefix), A to Z.
-export function outstandingByBuilding(tenants) {
+// Outstanding balance per unit prefix (the unit code's leading letter), A to
+// Z. The PMS only says "unit code"; whether a prefix is a building is not
+// something the data states, so it is not called one.
+export function outstandingByUnitPrefix(tenants) {
     const totals = new Map();
     tenants.forEach(tenant => {
-        const building = unitPrefix(tenant.unit) || 'Other';
+        const prefix = unitPrefix(tenant.unit) || 'Other';
         const owed = Math.max(Number(tenant.balance), 0);
-        totals.set(building, (totals.get(building) || 0) + owed);
+        totals.set(prefix, (totals.get(prefix) || 0) + owed);
     });
     return [...totals.entries()]
         .map(([label, value]) => ({ label, value }))
