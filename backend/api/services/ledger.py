@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
+from typing import Optional
 
 from api.models import Tenant, Transaction
 
@@ -15,46 +17,74 @@ class LedgerEntry:
 @dataclass
 class Ledger:
     tenant: Tenant
+    start: Optional[date]
+    end: Optional[date]
+    # The balance carried in from before `start`; zero when there is no start.
+    opening_balance: Decimal
     entries: list
+    # Totals for the entries shown, i.e. for the period.
     total_charges: Decimal
     total_payments: Decimal
+    # The balance after the last entry shown: the balance as of `end`.
     balance: Decimal
+    # Entries the PMS has since removed. Listed for audit, counted nowhere.
+    removed_entries: list
 
 
-def _pms_id_sort_key(pms_id):
-    # PMS ids are numeric strings today; sort those numerically ("9" before
-    # "10") and fall back to text ordering if that ever stops being true.
-    return (0, int(pms_id), '') if pms_id.isdigit() else (1, 0, pms_id)
+def _sort_key(transaction):
+    # Date first. Within a date, PMS entries in PMS id order -- numeric ids
+    # numerically ("9" before "10") -- then entries recorded locally.
+    pms_id = transaction.pms_id
+    if pms_id is None:
+        return (transaction.date, 2, transaction.pk, '')
+    if pms_id.isdigit():
+        return (transaction.date, 0, int(pms_id), '')
+    return (transaction.date, 1, 0, pms_id)
 
 
-def build_ledger(tenant):
+def build_ledger(tenant, start=None, end=None):
     """Return the tenant's transactions oldest-first with a running balance.
 
     A positive balance is money the tenant owes; a negative one is a credit.
-    `total_charges` and `total_payments` are net of credits and returned
-    payments, so `balance == total_charges - total_payments`.
-    """
-    transactions = sorted(
-        tenant.transactions.all(),
-        key=lambda t: (t.date, _pms_id_sort_key(t.pms_id)),
-    )
 
-    entries = []
+    With a date range, entries before `start` are rolled into
+    `opening_balance` and the running balance carries on from there, so every
+    row still shows the tenant's true balance on that day rather than a sum of
+    the visible rows. Entries after `end` are left out, which makes `balance`
+    the balance as of `end`.
+    """
+    transactions = sorted(tenant.transactions.all(), key=_sort_key)
+
+    opening_balance = ZERO
     total_charges = ZERO
     total_payments = ZERO
+    entries = []
+    removed_entries = []
     balance = ZERO
     for transaction in transactions:
+        if transaction.removed_from_pms_at is not None:
+            removed_entries.append(transaction)
+            continue
+        if end is not None and transaction.date > end:
+            continue
+        balance += transaction.balance_effect
+        if start is not None and transaction.date < start:
+            opening_balance = balance
+            continue
         if transaction.type == Transaction.Type.PAYMENT:
             total_payments += transaction.amount
         else:
             total_charges += transaction.amount
-        balance += transaction.balance_effect
         entries.append(LedgerEntry(transaction=transaction, running_balance=balance))
 
     return Ledger(
         tenant=tenant,
+        start=start,
+        end=end,
+        opening_balance=opening_balance,
         entries=entries,
         total_charges=total_charges,
         total_payments=total_payments,
         balance=balance,
+        removed_entries=removed_entries,
     )

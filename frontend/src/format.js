@@ -17,3 +17,11 @@ export function formatDate(isoDate) {
     const [year, month, day] = isoDate.split('-');
     return `${month}/${day}/${year}`;
 }
+
+const dateTime = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+
+// A sync time is a real instant, so unlike a ledger date it is shown in the
+// reader's own time zone.
+export function formatDateTime(isoDateTime) {
+    return dateTime.format(new Date(isoDateTime));
+}

@@ -73,17 +73,86 @@ def test_same_transaction_id_under_two_tenants_does_not_collide():
     assert Tenant.objects.get(pms_tenant_id=2).transactions.get().amount == Decimal('200.00')
 
 
-def test_reimport_is_idempotent_and_applies_changes_and_removals():
-    import_tenants([pms_tenant(1, 'Alice', [entry('1'), entry('2', 'payment'), entry('3')])])
+def counts(result):
+    return (
+        result.transactions_created, result.transactions_updated,
+        result.transactions_removed, result.transactions_restored,
+    )
+
+
+def test_reimport_is_idempotent_and_applies_changes():
+    import_tenants([pms_tenant(1, 'Alice', [entry('1'), entry('2', 'payment')])])
     local_ids = dict(Transaction.objects.values_list('pms_id', 'id'))
 
-    unchanged = import_tenants([pms_tenant(1, 'Alice', [entry('1'), entry('2', 'payment'), entry('3')])])
-    assert (unchanged.transactions_created, unchanged.transactions_updated, unchanged.transactions_deleted) == (0, 0, 0)
+    unchanged = import_tenants([pms_tenant(1, 'Alice', [entry('1'), entry('2', 'payment')])])
+    assert counts(unchanged) == (0, 0, 0, 0)
 
     changed = import_tenants([pms_tenant(1, 'Alice', [entry('1', amount=1600.0), entry('2', 'payment')])])
-    assert (changed.transactions_created, changed.transactions_updated, changed.transactions_deleted) == (0, 1, 1)
-    assert dict(Transaction.objects.values_list('pms_id', 'id')) == {'1': local_ids['1'], '2': local_ids['2']}
+    assert counts(changed) == (0, 1, 0, 0)
+    assert dict(Transaction.objects.values_list('pms_id', 'id')) == local_ids
     assert Transaction.objects.get(pms_id='1').amount == Decimal('1600.00')
+
+
+def test_entry_gone_from_the_pms_is_kept_but_stops_counting_and_can_come_back():
+    import_tenants([pms_tenant(1, 'Alice', [entry('1'), entry('2', amount=50.0)])])
+    tenant = Tenant.objects.get(pms_tenant_id=1)
+
+    removed = import_tenants([pms_tenant(1, 'Alice', [entry('1')])])
+
+    assert counts(removed) == (0, 0, 1, 0)
+    gone = Transaction.objects.get(pms_id='2')
+    assert gone.removed_from_pms_at is not None
+    assert build_ledger(tenant).balance == Decimal('1500.00')
+    # A later import does not count the same removal again.
+    assert counts(import_tenants([pms_tenant(1, 'Alice', [entry('1')])])) == (0, 0, 0, 0)
+
+    restored = import_tenants([pms_tenant(1, 'Alice', [entry('1'), entry('2', amount=50.0)])])
+
+    assert counts(restored) == (0, 0, 0, 1)
+    assert Transaction.objects.get(pms_id='2').pk == gone.pk
+    assert build_ledger(tenant).balance == Decimal('1550.00')
+
+
+def test_import_leaves_locally_recorded_transactions_alone():
+    import_tenants([pms_tenant(1, 'Alice', [entry('1')])])
+    tenant = Tenant.objects.get(pms_tenant_id=1)
+    local = Transaction.objects.create(
+        tenant=tenant, pms_id=None, date='2023-01-02', type='charge',
+        amount=Decimal('-25.00'), description='Courtesy credit',
+    )
+
+    result = import_tenants([pms_tenant(1, 'Alice', [entry('1')])])
+
+    local.refresh_from_db()
+    assert local.removed_from_pms_at is None
+    assert counts(result) == (0, 0, 0, 0)
+
+
+def test_import_records_when_each_ledger_was_synced():
+    result = import_tenants([
+        pms_tenant(1, 'Alice', [entry('1')]),
+        pms_tenant(2, 'Bob', [entry('1', type='refund')]),
+    ])
+
+    assert Tenant.objects.get(pms_tenant_id=1).ledger_synced_at is not None
+    # Bob's ledger was rejected, so nothing claims it is fresh.
+    assert not Tenant.objects.filter(pms_tenant_id=2).exists()
+    assert len(result.errors) == 1
+
+
+def test_dry_run_reports_the_changes_and_writes_nothing():
+    result = import_tenants([pms_tenant(1, 'Alice', [entry('1'), entry('2')])], dry_run=True)
+
+    assert (result.tenants_created, result.transactions_created) == (1, 2)
+    assert Tenant.objects.count() == 0
+    assert Transaction.objects.count() == 0
+
+
+def test_dry_run_flag_on_the_command(capsys):
+    call_command('import_transactions', source=str(SAMPLE), dry_run=True)
+
+    assert 'Dry run: nothing was written.' in capsys.readouterr().out
+    assert Transaction.objects.count() == 0
 
 
 @pytest.mark.parametrize('bad', [

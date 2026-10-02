@@ -32,3 +32,10 @@ test('largest balances lists only tenants who owe, biggest first', () => {
 test('formats a month without a time zone shift', () => {
     expect([formatMonth('2023-01'), formatMonth('2021-12')]).toEqual(['Jan 2023', 'Dec 2021']);
 });
+
+test('a tenant with no balance on file is not counted as settled', () => {
+    const summary = portfolioSummary([...tenants, { id: 9, name: 'Nobody', unit: 'A1', balance: null }]);
+
+    expect(summary.settledCount).toBe(1);
+    expect(summary.outstanding).toBe(3715);
+});

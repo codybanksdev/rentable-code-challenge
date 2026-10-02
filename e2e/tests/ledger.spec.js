@@ -35,6 +35,11 @@ test('the tenant list shows every tenant with a balance', async ({ page }) => {
     await expect(rowFor(page, 'Alice Wonderland')).toContainText('$0.00');
     // The import takes the unit from the PMS: the seed said B202.
     await expect(rowFor(page, 'Bob The Builder')).toContainText('B205');
+    // The first column is the PMS id. Charlie has no PMS record, so he has
+    // neither an id nor a balance, rather than a misleading $0.00.
+    await expect(rowFor(page, 'Daisy Ridley').locator('td')).toHaveText(['3', 'Daisy Ridley', 'C303', '$1,240.00', 'View Ledger']);
+    await expect(rowFor(page, 'Charlie Chaplin').locator('td')).toHaveText(['—', 'Charlie Chaplin', 'C303', '—', 'View Ledger']);
+    await expect(page.getByText(/^Ledgers last synced from the PMS: /)).toBeVisible();
 });
 
 test('View Ledger shows that tenant\'s transactions with a running balance', async ({ page }) => {
@@ -221,4 +226,50 @@ test('the ledger shows how long the tenant has been active and charts the balanc
     await page.mouse.move(box.x + box.width - 5, box.y + box.height / 2);
     await expect(chart.getByRole('status')).toContainText('03/05/2023');
     await expect(chart.getByRole('status')).toContainText('Balance: $1,240.00');
+});
+
+test('a date range shows an opening balance and the balance as of the end date', async ({ page }) => {
+    const dialog = await openLedger(page, 'Daisy Ridley');
+
+    await dialog.getByLabel('From', { exact: true }).fill('2023-02-01');
+    await dialog.getByLabel('To', { exact: true }).fill('2023-02-28');
+
+    // Before February she owed $20.00 (a $100 parking fee less an $80 payment).
+    await expect(ledgerRows(dialog).first().locator('td')).toHaveText(['02/01/2023', 'Opening balance', '', '', '$20.00']);
+    await expect(ledgerRows(dialog)).toHaveCount(3);
+    await expect(dialog.locator('.ledger-balance')).toHaveText('Balance as of 02/28/2023$20.00');
+
+    await dialog.getByRole('button', { name: 'All dates' }).click();
+    await expect(ledgerRows(dialog)).toHaveCount(10);
+    await expect(dialog.locator('.ledger-balance')).toHaveText('Balance due$1,240.00');
+});
+
+test('Export CSV downloads the ledger that is on screen', async ({ page }) => {
+    const dialog = await openLedger(page, 'Daisy Ridley');
+    await dialog.getByLabel('From', { exact: true }).fill('2023-03-01');
+    await expect(ledgerRows(dialog)).toHaveCount(3);
+
+    const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        dialog.getByRole('button', { name: 'Export CSV' }).click(),
+    ]);
+
+    expect(download.suggestedFilename()).toMatch(/^ledger-tenant-\d+\.csv$/);
+    const lines = require('fs').readFileSync(await download.path(), 'utf8').trim().split(/\r?\n/);
+    expect(lines).toEqual([
+        'Date,Description,Type,Charge,Payment,Balance,PMS transaction id',
+        '2023-03-01,Opening balance,,,,20.00,',
+        '2023-03-01,Rent Charge - March,charge,1300.00,,1320.00,30',
+        '2023-03-05,Utility Credit,charge,-80.00,,1240.00,20',
+    ]);
+});
+
+test('opening the ledger moves focus into it and closing returns it', async ({ page }) => {
+    const button = page.getByRole('button', { name: 'View ledger for Daisy Ridley' });
+    await button.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByRole('dialog').getByRole('heading', { level: 2 })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(button).toBeFocused();
 });

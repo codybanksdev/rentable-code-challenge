@@ -17,6 +17,12 @@ module.exports = defineConfig({
         baseURL: 'http://localhost:3009',
         trace: 'retain-on-failure',
     },
+    // Read-only specs run in parallel against the seeded data. The spec that
+    // writes runs afterwards, so it cannot change what the others assert.
+    projects: [
+        { name: 'read', testMatch: 'ledger.spec.js' },
+        { name: 'write', testMatch: 'add-transaction.spec.js', dependencies: ['read'] },
+    ],
     // The frontend's dev proxy is fixed to port 8009, so the suite uses the
     // same ports as ./start.sh and refuses to run against servers it did not
     // start: stop ./start.sh first.

@@ -2,7 +2,10 @@
 import { unitPrefix } from './tenantFilters';
 
 export function portfolioSummary(tenants) {
-    const balances = tenants.map(tenant => Number(tenant.balance));
+    // Tenants with no balance on file are in none of these groups.
+    const balances = tenants
+        .filter(tenant => tenant.balance !== null)
+        .map(tenant => Number(tenant.balance));
     const owing = balances.filter(balance => balance > 0);
     const credits = balances.filter(balance => balance < 0);
     const sum = values => values.reduce((total, value) => total + value, 0);

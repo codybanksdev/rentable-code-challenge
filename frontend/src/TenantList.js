@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import TenantLedger from './TenantLedger';
-import { formatMoney } from './format';
+import { formatDateTime, formatMoney } from './format';
 import {
     COLUMNS, NO_FILTERS, filterTenants, nextSort, sortTenants, unitPrefixes,
 } from './tenantFilters';
@@ -40,10 +40,17 @@ function TenantList() {
     const setFilter = name => event => setFilters({ ...filters, [name]: event.target.value });
     const visibleTenants = sortTenants(filterTenants(tenants, filters), sort);
     const filtered = Object.keys(NO_FILTERS).some(name => filters[name] !== '');
+    // ISO timestamps sort as text; the newest is when the PMS was last read.
+    const lastSynced = tenants.map(tenant => tenant.ledger_synced_at).filter(Boolean).sort().pop();
 
     return (
         <div className="tenant-list">
             <h2>Tenants</h2>
+            <p className="sync-status">
+                {lastSynced
+                    ? `Ledgers last synced from the PMS: ${formatDateTime(lastSynced)}`
+                    : 'Ledgers have not been synced from the PMS yet.'}
+            </p>
             {tenants.length === 0 ? (
                 <p>No tenants found.</p>
             ) : (
@@ -84,6 +91,7 @@ function TenantList() {
                         </span>
                     </div>
                     <table>
+                        <caption className="visually-hidden">Tenants and their balances</caption>
                         <thead>
                             <tr>
                                 {COLUMNS.map(column => {
@@ -92,6 +100,7 @@ function TenantList() {
                                     return (
                                         <th
                                             key={column.key}
+                                            scope="col"
                                             className={column.key === 'balance' ? 'money' : undefined}
                                             aria-sort={active ? direction : 'none'}
                                         >
@@ -107,16 +116,20 @@ function TenantList() {
                                         </th>
                                     );
                                 })}
-                                <th>Action</th>
+                                <th scope="col">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             {visibleTenants.map(tenant => (
                                 <tr key={tenant.id}>
-                                    <td>{tenant.id}</td>
+                                    <td>{tenant.pms_tenant_id ?? <span title="No PMS record">—</span>}</td>
                                     <td>{tenant.name}</td>
                                     <td>{tenant.unit}</td>
-                                    <td className="money">{formatMoney(tenant.balance)}</td>
+                                    <td className="money">
+                                        {tenant.balance === null
+                                            ? <span title="No PMS record and no transactions">—</span>
+                                            : formatMoney(tenant.balance)}
+                                    </td>
                                     <td>
                                         <button
                                             aria-label={`View ledger for ${tenant.name}`}

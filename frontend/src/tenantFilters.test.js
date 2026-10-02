@@ -1,10 +1,10 @@
 import { filterTenants, nextSort, NO_FILTERS, sortTenants, unitPrefix, unitPrefixes } from './tenantFilters';
 
 const tenants = [
-    { id: 1, name: 'Alice', unit: 'A101', balance: '0.00' },
-    { id: 2, name: 'bob', unit: 'B205', balance: '2425.00' },
-    { id: 3, name: 'Daisy', unit: 'A20', balance: '-550.00' },
-    { id: 4, name: 'Carl', unit: null, balance: '50.00' },
+    { id: 1, pms_tenant_id: 10, name: 'Alice', unit: 'A101', balance: '0.00' },
+    { id: 2, pms_tenant_id: 9, name: 'bob', unit: 'B205', balance: '2425.00' },
+    { id: 3, pms_tenant_id: 2, name: 'Daisy', unit: 'A20', balance: '-550.00' },
+    { id: 4, pms_tenant_id: 7, name: 'Carl', unit: null, balance: '50.00' },
 ];
 
 const ids = list => list.map(tenant => tenant.id);
@@ -51,4 +51,14 @@ test('clicking the active column flips direction; another column starts ascendin
     expect(nextSort({ key: 'name', direction: 'asc' }, 'name')).toEqual({ key: 'name', direction: 'desc' });
     expect(nextSort({ key: 'name', direction: 'desc' }, 'name')).toEqual({ key: 'name', direction: 'asc' });
     expect(nextSort({ key: 'name', direction: 'desc' }, 'balance')).toEqual({ key: 'balance', direction: 'asc' });
+});
+
+test('tenants with no balance or PMS id sort last in both directions and match no balance range', () => {
+    const withUnlinked = [{ id: 9, pms_tenant_id: null, name: 'Nobody', unit: 'A1', balance: null }, ...tenants];
+
+    expect(ids(sortTenants(withUnlinked, { key: 'balance', direction: 'asc' }))).toEqual([3, 1, 4, 2, 9]);
+    expect(ids(sortTenants(withUnlinked, { key: 'balance', direction: 'desc' }))).toEqual([2, 4, 1, 3, 9]);
+    expect(ids(sortTenants(withUnlinked, { key: 'pms_tenant_id', direction: 'asc' }))).toEqual([3, 4, 2, 1, 9]);
+    expect(ids(filterTenants(withUnlinked, { ...NO_FILTERS, maxBalance: '0' }))).toEqual([1, 3]);
+    expect(ids(filterTenants(withUnlinked, { ...NO_FILTERS, unitPrefix: 'A' }))).toEqual([9, 1, 3]);
 });

@@ -2,7 +2,7 @@
 // so the rules can be tested without rendering anything.
 
 export const COLUMNS = [
-    { key: 'id', label: 'ID', numeric: true },
+    { key: 'pms_tenant_id', label: 'PMS ID', numeric: true },
     { key: 'name', label: 'Name' },
     { key: 'unit', label: 'Unit' },
     { key: 'balance', label: 'Balance', numeric: true },
@@ -32,8 +32,11 @@ export function filterTenants(tenants, { unitPrefix: prefix, minBalance, maxBala
     const min = parseBound(minBalance);
     const max = parseBound(maxBalance);
     return tenants.filter(tenant => {
-        const balance = Number(tenant.balance);
         if (prefix && unitPrefix(tenant.unit) !== prefix) return false;
+        if (min === null && max === null) return true;
+        // A tenant with no balance on file is in no balance range.
+        if (tenant.balance === null) return false;
+        const balance = Number(tenant.balance);
         if (min !== null && balance < min) return false;
         if (max !== null && balance > max) return false;
         return true;
@@ -46,6 +49,11 @@ export function sortTenants(tenants, { key, direction }) {
     const column = COLUMNS.find(candidate => candidate.key === key);
     const sign = direction === 'desc' ? -1 : 1;
     return [...tenants].sort((a, b) => {
+        if (column.numeric) {
+            // Missing values (no PMS id, no balance) go last in either direction.
+            const missing = (a[key] === null) - (b[key] === null);
+            if (missing) return missing;
+        }
         const order = column.numeric
             ? Number(a[key]) - Number(b[key])
             // Numeric collation puts unit "A2" before "A10".

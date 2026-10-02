@@ -20,6 +20,7 @@ def monthly_activity():
     """
     return list(
         Transaction.objects
+        .filter(removed_from_pms_at__isnull=True)
         .annotate(month=TruncMonth('date'))
         .values('month')
         .annotate(

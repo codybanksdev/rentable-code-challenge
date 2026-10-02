@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 
 import requests
 from django.db import transaction as db_transaction
+from django.utils import timezone
 
 from api.models import Tenant, Transaction
 
@@ -35,7 +36,8 @@ class ImportResult:
     tenants_linked: int = 0
     transactions_created: int = 0
     transactions_updated: int = 0
-    transactions_deleted: int = 0
+    transactions_removed: int = 0
+    transactions_restored: int = 0
     # One message per tenant whose ledger was left untouched.
     errors: list = field(default_factory=list)
 
@@ -123,38 +125,62 @@ def _resolve_tenant(tenant_data, result):
     return tenant
 
 
-def _sync_ledger(tenant, ledger, result):
+def _sync_ledger(tenant, ledger, result, synced_at):
     """Make the tenant's local transactions match the PMS ledger exactly."""
     parsed = [parse_ledger_entry(entry) for entry in ledger]
     pms_ids = [values['pms_id'] for values in parsed]
     if len(set(pms_ids)) != len(pms_ids):
         raise InvalidLedgerEntry('duplicate transaction id in ledger')
 
-    existing = {t.pms_id: t for t in tenant.transactions.all()}
+    # Entries recorded locally (no pms_id) are not the PMS's to change.
+    existing = {t.pms_id: t for t in tenant.transactions.filter(pms_id__isnull=False)}
     to_create, to_update = [], []
     for values in parsed:
         current = existing.pop(values['pms_id'], None)
         if current is None:
             to_create.append(Transaction(tenant=tenant, **values))
-        elif any(getattr(current, name) != values[name] for name in TRANSACTION_FIELDS):
+            continue
+        changed = any(getattr(current, name) != values[name] for name in TRANSACTION_FIELDS)
+        restored = current.removed_from_pms_at is not None
+        if changed or restored:
             for name in TRANSACTION_FIELDS:
                 setattr(current, name, values[name])
+            current.removed_from_pms_at = None
             to_update.append(current)
+            if restored:
+                result.transactions_restored += 1
+            else:
+                result.transactions_updated += 1
 
     Transaction.objects.bulk_create(to_create)
-    Transaction.objects.bulk_update(to_update, TRANSACTION_FIELDS)
-    # Whatever is left locally is no longer in the PMS ledger. Keeping it
-    # would leave a balance that can never reconcile with the PMS.
-    stale_ids = [t.pk for t in existing.values()]
-    Transaction.objects.filter(pk__in=stale_ids).delete()
+    Transaction.objects.bulk_update(to_update, TRANSACTION_FIELDS + ['removed_from_pms_at'])
+    # Whatever is left locally is no longer in the PMS ledger. It stops
+    # counting toward the balance, so the balance still reconciles with the
+    # PMS, but the row is kept to explain why the balance changed.
+    newly_removed = [t.pk for t in existing.values() if t.removed_from_pms_at is None]
+    Transaction.objects.filter(pk__in=newly_removed).update(removed_from_pms_at=synced_at)
+
+    tenant.ledger_synced_at = synced_at
+    tenant.save(update_fields=['ledger_synced_at'])
 
     result.transactions_created += len(to_create)
-    result.transactions_updated += len(to_update)
-    result.transactions_deleted += len(stale_ids)
+    result.transactions_removed += len(newly_removed)
 
 
-def import_tenants(tenants_data):
+def import_tenants(tenants_data, dry_run=False):
     """Apply a PMS tenants payload to the local database.
+
+    With `dry_run`, everything runs and is counted, then rolled back.
+    """
+    with db_transaction.atomic():
+        result = _import_tenants(tenants_data)
+        if dry_run:
+            db_transaction.set_rollback(True)
+    return result
+
+
+def _import_tenants(tenants_data):
+    """Apply the payload tenant by tenant.
 
     Each tenant is applied in its own database transaction. If any entry in a
     tenant's ledger is invalid, that tenant is left exactly as it was and
@@ -162,6 +188,7 @@ def import_tenants(tenants_data):
     plausible but wrong balance, which is worse than a stale one.
     """
     result = ImportResult()
+    synced_at = timezone.now()
     for tenant_data in tenants_data:
         pms_tenant_id = tenant_data.get('tenant_id') if isinstance(tenant_data, dict) else None
         if not isinstance(pms_tenant_id, int) or isinstance(pms_tenant_id, bool):
@@ -175,7 +202,7 @@ def import_tenants(tenants_data):
         try:
             with db_transaction.atomic():
                 tenant = _resolve_tenant(tenant_data, tenant_result)
-                _sync_ledger(tenant, ledger, tenant_result)
+                _sync_ledger(tenant, ledger, tenant_result, synced_at)
         except InvalidLedgerEntry as exc:
             result.errors.append(f'PMS tenant {pms_tenant_id}: {exc}. Ledger left unchanged.')
             continue
@@ -184,5 +211,6 @@ def import_tenants(tenants_data):
         result.tenants_linked += tenant_result.tenants_linked
         result.transactions_created += tenant_result.transactions_created
         result.transactions_updated += tenant_result.transactions_updated
-        result.transactions_deleted += tenant_result.transactions_deleted
+        result.transactions_removed += tenant_result.transactions_removed
+        result.transactions_restored += tenant_result.transactions_restored
     return result

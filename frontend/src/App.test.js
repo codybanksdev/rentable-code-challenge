@@ -16,7 +16,8 @@ const routes = {
     '/api/tenants/': tenants,
     '/api/reports/monthly-activity/': months,
     '/api/tenants/2/ledger/': {
-        tenant: tenants[1], total_charges: '2425.00', total_payments: '0.00', balance: '2425.00',
+        tenant: tenants[1], start: null, end: null, opening_balance: '0.00',
+        total_charges: '2425.00', total_payments: '0.00', balance: '2425.00', removed_entries: [],
         entries: [{ id: 9, pms_id: '9', date: '2023-01-01', description: 'Rent Charge - January', type: 'charge', amount: '2425.00', running_balance: '2425.00' }],
     },
 };
