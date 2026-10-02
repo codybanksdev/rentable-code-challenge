@@ -46,25 +46,38 @@ def test_ledger_attaches_by_pms_tenant_id_not_local_id():
     assert daisy.transactions.count() == 1
 
 
-def test_unlinked_local_tenant_is_adopted_by_name_and_takes_pms_unit():
-    bob = Tenant.objects.create(name='Bob The Builder', unit='B202')
+def test_a_linked_tenant_takes_its_name_and_unit_from_the_pms():
+    bob = Tenant.objects.create(name='Bob The Builder', unit='B202', pms_tenant_id=2)
 
-    result = import_tenants([pms_tenant(2, 'Bob The Builder', [entry('1')], unit='B205')])
+    result = import_tenants([pms_tenant(2, 'Robert The Builder', [entry('1')], unit='B205')])
 
     bob.refresh_from_db()
-    assert (bob.pms_tenant_id, bob.unit) == (2, 'B205')
+    assert (bob.name, bob.unit) == ('Robert The Builder', 'B205')
     assert Tenant.objects.count() == 1
-    assert (result.tenants_linked, result.tenants_created) == (1, 0)
+    assert result.tenants_created == 0
 
 
-def test_ambiguous_name_match_creates_a_new_tenant():
-    Tenant.objects.create(name='Sam Smith')
-    Tenant.objects.create(name='Sam Smith')
+def test_a_same_named_local_tenant_is_not_assumed_to_be_the_pms_tenant():
+    local = Tenant.objects.create(name='John Smith', unit='A1')
 
-    import_tenants([pms_tenant(5, 'Sam Smith', [entry('1')])])
+    import_tenants([pms_tenant(5, 'John Smith', [entry('1')], unit='H9')])
 
-    assert Tenant.objects.count() == 3
+    # Two John Smiths: the local one keeps no ledger and no PMS id.
+    local.refresh_from_db()
+    assert (local.pms_tenant_id, local.unit, local.transactions.count()) == (None, 'A1', 0)
     assert Tenant.objects.get(pms_tenant_id=5).transactions.count() == 1
+
+
+def test_seed_data_links_known_tenants_to_their_pms_ids():
+    # A database seeded before PMS ids existed.
+    Tenant.objects.create(name='Alice Wonderland', unit='A101')
+
+    call_command('seed_data')
+    call_command('seed_data')
+
+    assert list(Tenant.objects.order_by('name').values_list('name', 'pms_tenant_id')) == [
+        ('Alice Wonderland', 1), ('Bob The Builder', 2), ('Charlie Chaplin', None),
+    ]
 
 
 def test_same_transaction_id_under_two_tenants_does_not_collide():

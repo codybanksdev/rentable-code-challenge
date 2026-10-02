@@ -149,20 +149,19 @@ import creates them.
 returns several customers' tenants, the model needs a customer or property
 boundary first.
 
-### Seeded tenants are linked to the PMS by exact name, once
+### Tenants are matched on the PMS id only, never on a name
 
-The seeded tenants have no PMS id. On first import, a PMS tenant with no
-local match adopts an unlinked local tenant when exactly one has the same
-name; after that the PMS id is the only key. Alice and Bob link this way, and
-Bob's unit is updated to B205 because the PMS is the source of truth. Charlie
-Chaplin matches nothing, stays unlinked with an empty ledger, and is reported
-on every import.
+The import finds a local tenant by `pms_tenant_id` and nothing else. The
+seeded tenants state their PMS id in `seed_data.py` (Alice is 1, Bob is 2),
+so they link on the first import and Bob's unit is updated to B205, because
+the PMS is the source of truth. Charlie Chaplin has no PMS id, matches
+nothing, keeps an empty ledger, and is reported on every import.
 
-*Not taken:* putting PMS ids in the seed data and dropping the name match.
-That is stricter (a name is not an identity) and is the better choice if the
-seed is the only source of pre-existing tenants. The name match is kept
-because it also covers a database that already has tenants in it. It never
-guesses between two candidates.
+*Not taken:* adopting an unlinked local tenant whose name matches exactly.
+That was the first implementation. Two independent reviews flagged it: two
+people can share a name, and a ledger on the wrong person is worse than two
+rows for one. Stating the id where the tenant is created is stricter and is
+less code.
 
 ### Transactions the PMS no longer has are marked removed, not deleted
 
@@ -312,6 +311,41 @@ each as one JSON object for a log pipeline. This is the standard library's
 *Not taken:* OpenTelemetry tracing. There is one outbound call and one
 database; the durations that matter are already fields on the log events.
 It becomes worth it when a second service needs correlating.
+
+### Balances can be taken as of any date
+
+`GET /api/tenants/?as_of=YYYY-MM-DD` counts only transactions dated on or
+before that day, which is each tenant's balance at the close of it. The
+tenant list has a date field for it and says plainly when the balances shown
+are not today's. A test asserts this agrees with the ledger's balance as of
+the same day.
+
+### The roll-forward statement
+
+`GET /api/reports/roll-forward/?start=&end=` returns, for a period, one row
+per tenant: opening balance, net charges, net payments, closing balance, and
+control totals. Every row and the totals obey
+opening + charges - payments = closing. This is the statement that ties the
+tenant sub-ledger to a general ledger control account at period end, and it
+exports as CSV with the totals as the last row.
+
+It is one aggregate query, not a ledger built per tenant. Tests assert that
+its opening and closing agree with `build_ledger` for the same dates, and
+that its closing total equals the month-end receivable from the monthly
+report: three code paths, one number.
+
+### Insights follows one date range
+
+The From and To fields on Insights drive everything on the tab. The monthly
+series and the roll-forward cover the period. The tiles and balance lists are
+standing figures, so they are as of the end date, and each says so.
+
+The total receivable is a level that carries from month to month, so it is a
+line and is always cumulative from the first transaction, even when the range
+starts later. Charges, payments and returned payments belong to their month,
+so they are bars. The collection rate (net payments over net charges) is a
+column in the monthly table rather than another chart; it is blank for a
+month with nothing charged, and can exceed 100% when arrears are paid.
 
 ### The ledger opens as a dialog, and stays in date order
 

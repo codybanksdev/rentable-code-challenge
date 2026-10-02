@@ -34,9 +34,7 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write('Dry run: nothing was written. This is what would change:')
 
-        self.stdout.write(
-            f'Tenants: {result.tenants_created} created, {result.tenants_linked} linked to an existing local tenant.'
-        )
+        self.stdout.write(f'Tenants: {result.tenants_created} created.')
         self.stdout.write(
             f'Transactions: {result.transactions_created} created, {result.transactions_updated} updated, '
             f'{result.transactions_removed} marked removed (no longer in the PMS), '

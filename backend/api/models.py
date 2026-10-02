@@ -4,7 +4,7 @@ from django.db.models import Case, DecimalField, F, Q, Sum, When
 
 
 class TenantQuerySet(models.QuerySet):
-    def with_balance(self):
+    def with_balance(self, as_of=None):
         """Annotate each tenant with `balance`, the amount they currently owe,
         and `deposit_held`, the security deposit being held for them.
 
@@ -15,8 +15,14 @@ class TenantQuerySet(models.QuerySet):
         The balance is None for a tenant with no transactions at all, so
         callers can tell "nothing on file" from "settled at zero". Entries the
         PMS has removed are left out.
+
+        With `as_of`, only transactions dated on or before it count, which
+        gives each tenant's balance at the close of that day.
         """
         money = DecimalField(max_digits=12, decimal_places=2)
+        counted = Q(transactions__removed_from_pms_at__isnull=True)
+        if as_of is not None:
+            counted &= Q(transactions__date__lte=as_of)
         return self.annotate(
             balance=Sum(
                 Case(
@@ -27,14 +33,13 @@ class TenantQuerySet(models.QuerySet):
                     default=F('transactions__amount'),
                     output_field=money,
                 ),
-                filter=Q(transactions__removed_from_pms_at__isnull=True),
+                filter=counted,
             ),
             # Deposit money actually received, net of refunds. It is the
             # tenant's money that the landlord is holding.
             deposit_held=Sum(
                 'transactions__amount',
-                filter=Q(
-                    transactions__removed_from_pms_at__isnull=True,
+                filter=counted & Q(
                     transactions__category=Transaction.Category.DEPOSIT,
                     transactions__type=Transaction.Type.PAYMENT,
                 ),

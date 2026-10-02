@@ -90,19 +90,16 @@ problem, and logs structured events, so a cron entry or scheduled job is
 enough to start. The screen already shows when each ledger was synced; add a
 warning when that is older than the agreed freshness.
 
-## 6. Export for the general ledger
+## 6. Export in the accounting system's own layout
 
-**What it enables.** A month-end file in the layout the customer's accounting
-system imports, instead of one CSV per tenant.
-
-**What it takes.** A portfolio-level export for a period: per tenant, opening
-balance, charges, payments, closing balance; and a second file of every entry
-with a category.
+**What it enables.** The roll-forward statement and its CSV exist (see
+`docs/decisions.md`). The next step is a month-end file in the layout the
+customer's accounting system imports, with each entry mapped to an account.
 
 **Decide first.** The chart-of-accounts mapping. The PMS gives only free-text
-descriptions ("Rent Charge - March", "Late Fee Charge"). A small
-description-to-category table, maintained by the customer, is safer than
-guessing.
+descriptions ("Rent Charge - March", "Late Fee Charge"), and today they are
+sorted into just two categories. A description-to-account table, maintained
+by the customer, is safer than guessing.
 
 ## 7. A fuller deposit ledger
 

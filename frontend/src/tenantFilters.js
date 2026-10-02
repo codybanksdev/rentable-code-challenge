@@ -5,7 +5,7 @@ export const COLUMNS = [
     { key: 'pms_tenant_id', label: 'PMS ID', numeric: true },
     { key: 'name', label: 'Name' },
     { key: 'unit', label: 'Unit' },
-    { key: 'balance', label: 'Balance', numeric: true },
+    { key: 'balance', label: 'Balance', numeric: true, money: true },
 ];
 
 export const NO_FILTERS = { unitPrefix: '', labelId: '', minBalance: '', maxBalance: '' };
@@ -46,10 +46,16 @@ export function filterTenants(tenants, { unitPrefix: prefix, labelId, minBalance
 
 const collator = new Intl.Collator('en-US', { numeric: true, sensitivity: 'base' });
 
-export function sortTenants(tenants, { key, direction }) {
-    const column = COLUMNS.find(candidate => candidate.key === key);
+export function sortTenants(tenants, sort) {
+    return sortRows(tenants, sort, COLUMNS, 'id');
+}
+
+// Sort any table's rows by one of its columns. `idKey` names the field that
+// breaks ties.
+export function sortRows(rows, { key, direction }, columns, idKey) {
+    const column = columns.find(candidate => candidate.key === key);
     const sign = direction === 'desc' ? -1 : 1;
-    return [...tenants].sort((a, b) => {
+    return [...rows].sort((a, b) => {
         if (column.numeric) {
             // Missing values (no PMS id, no balance) go last in either direction.
             const missing = (a[key] === null) - (b[key] === null);
@@ -60,7 +66,7 @@ export function sortTenants(tenants, { key, direction }) {
             // Numeric collation puts unit "A2" before "A10".
             : collator.compare(a[key] || '', b[key] || '');
         // Ties fall back to id so the order never depends on the previous sort.
-        return (order || a.id - b.id) * sign;
+        return (order || a[idKey] - b[idKey]) * sign;
     });
 }
 

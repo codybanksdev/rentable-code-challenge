@@ -41,7 +41,6 @@ class InvalidLedgerEntry(ValueError):
 @dataclass
 class ImportResult:
     tenants_created: int = 0
-    tenants_linked: int = 0
     transactions_created: int = 0
     transactions_updated: int = 0
     transactions_removed: int = 0
@@ -124,27 +123,16 @@ def parse_ledger_entry(entry):
 def _resolve_tenant(tenant_data, result):
     """Find or create the local tenant for a PMS tenant.
 
-    Local ids are not PMS ids, so the only safe key is `pms_tenant_id`. A
-    local tenant that predates the link is adopted when exactly one unlinked
-    tenant has the same name; otherwise a new tenant is created rather than
-    risk putting a ledger on the wrong person.
+    The PMS id is the only key. A local tenant with the same name but no PMS
+    id is not assumed to be the same person: two people can share a name, and
+    putting a ledger on the wrong one is worse than showing both.
     """
     pms_tenant_id = tenant_data['tenant_id']
-    name = tenant_data.get('name') or ''
     tenant = Tenant.objects.filter(pms_tenant_id=pms_tenant_id).first()
     if tenant is None:
-        unlinked = list(Tenant.objects.filter(pms_tenant_id__isnull=True, name=name)[:2])
-        if len(unlinked) == 1:
-            tenant = unlinked[0]
-            tenant.pms_tenant_id = pms_tenant_id
-            result.tenants_linked += 1
-            logger.info('pms.import.tenant_linked_by_name', extra={
-                'tenant_id': tenant.pk, 'pms_tenant_id': pms_tenant_id,
-            })
-        else:
-            tenant = Tenant(pms_tenant_id=pms_tenant_id)
-            result.tenants_created += 1
-    tenant.name = name
+        tenant = Tenant(pms_tenant_id=pms_tenant_id)
+        result.tenants_created += 1
+    tenant.name = tenant_data.get('name') or ''
     tenant.unit = tenant_data.get('unit')
     tenant.save()
     return tenant
@@ -219,7 +207,6 @@ def import_tenants(tenants_data, dry_run=False):
         'dry_run': dry_run,
         'tenants_in_payload': len(tenants_data),
         'tenants_created': result.tenants_created,
-        'tenants_linked': result.tenants_linked,
         'transactions_created': result.transactions_created,
         'transactions_updated': result.transactions_updated,
         'transactions_removed': result.transactions_removed,
@@ -271,7 +258,6 @@ def _import_tenants(tenants_data):
             continue
         # Only counted once this tenant's block has completed.
         result.tenants_created += tenant_result.tenants_created
-        result.tenants_linked += tenant_result.tenants_linked
         result.transactions_created += tenant_result.transactions_created
         result.transactions_updated += tenant_result.transactions_updated
         result.transactions_removed += tenant_result.transactions_removed

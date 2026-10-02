@@ -82,13 +82,15 @@ API endpoints:
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/tenants/` | Tenants, each with its current balance and labels |
+| `GET /api/tenants/` | Tenants, each with its balance, deposit held and labels. Optional `as_of` (`YYYY-MM-DD`) gives balances at the close of that day. |
 | `GET /api/tenants/<id>/ledger/` | One tenant's transactions with a running balance and totals. Optional `start` and `end` (`YYYY-MM-DD`). |
 | `GET /api/tenants/<id>/ledger.csv` | The same ledger as a CSV download |
 | `PUT /api/tenants/<id>/labels/` | Replace a tenant's labels (`{"label_ids": [...]}`) |
 | `GET /api/labels/`, `POST /api/labels/` | List labels, or create one (`{"name", "color"}`) |
 | `GET /api/transactions/?tenant=<id>` | Raw transactions, optionally for one tenant |
-| `GET /api/reports/monthly-activity/` | Charges and payments per month across all tenants |
+| `GET /api/reports/monthly-activity/` | Per month: net charges, net payments, returned payments, collection rate, receivable at month end. Optional `start` and `end`. |
+| `GET /api/reports/roll-forward/` | Per tenant for a period: opening, net charges, net payments, closing, with control totals. Optional `start` and `end`. |
+| `GET /api/reports/roll-forward.csv` | The same statement as a CSV download, ending in a totals row |
 
 ## The Challenge
 

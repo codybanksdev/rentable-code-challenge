@@ -1,22 +1,29 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import MonthlyChart from './MonthlyChart';
+import SortableHeader from './SortableHeader';
 import TenantLedger from './TenantLedger';
-import { axisMoney, niceLimit } from './chartScale';
-import { formatMoney } from './format';
+import { getJson } from './api';
+import { downloadFile } from './download';
+import { formatDate, formatMoney } from './format';
 import { formatMonth, largestBalances, outstandingByUnitPrefix, portfolioSummary } from './insightsData';
+import { sortRows } from './tenantFilters';
 
-const SERIES = [
-    // Net: credits reduce charges and returned payments reduce payments.
+// Net: credits reduce charges and returned payments reduce payments.
+const ACTIVITY = [
     { key: 'charges', label: 'Net charges', color: '#2a78d6' },
     { key: 'payments', label: 'Net payments', color: '#eb6834' },
 ];
+const RECEIVABLE = [{ key: 'receivable', label: 'Receivable', color: '#2a78d6' }];
+const RETURNED = [{ key: 'returned_payments', label: 'Returned payments', color: '#2a78d6' }];
 
-function fetchJson(url) {
-    return fetch(url).then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    });
+const percent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 0 });
+
+function rangeQuery({ start, end }) {
+    const params = new URLSearchParams();
+    if (start) params.set('start', start);
+    if (end) params.set('end', end);
+    const query = params.toString();
+    return query ? `?${query}` : '';
 }
 
 function StatTile({ label, value, detail }) {
@@ -65,105 +72,22 @@ function BarList({ title, rows, emptyText, onSelect }) {
     );
 }
 
-const WIDTH = 720;
-const HEIGHT = 260;
-const PAD = { top: 16, right: 32, bottom: 28, left: 64 };
-
-function MonthlyActivityChart({ months }) {
-    const [hovered, setHovered] = useState(null);
-    const title = 'Net charges and payments by month';
-    if (months.length === 0) {
-        return <section className="chart" aria-label={title}><h3>{title}</h3><p>No transactions yet.</p></section>;
-    }
-
-    const values = months.flatMap(month => SERIES.map(series => Number(month[series.key])));
-    const top = niceLimit(Math.max(...values, 1));
-    const bottom = niceLimit(Math.min(...values, 0));
-    const plotWidth = WIDTH - PAD.left - PAD.right;
-    const plotHeight = HEIGHT - PAD.top - PAD.bottom;
-    const step = months.length > 1 ? plotWidth / (months.length - 1) : 0;
-    const x = index => PAD.left + index * step;
-    const y = value => PAD.top + plotHeight * (1 - (value - bottom) / (top - bottom));
-    const ticks = [bottom, bottom + (top - bottom) / 2, top];
-    const last = months.length - 1;
-
+// The figures behind the monthly charts, plus the collection rate.
+function MonthlyTable({ months }) {
+    if (months.length === 0) return null;
     return (
-        <section className="chart" aria-label={title}>
-            <h3>{title}</h3>
-            <ul className="legend">
-                {SERIES.map(series => (
-                    <li key={series.key}>
-                        <span className="legend-swatch" style={{ backgroundColor: series.color }} />
-                        {series.label}
-                    </li>
-                ))}
-            </ul>
-            <div className="line-chart">
-                <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`${title}, ${formatMonth(months[0].month)} to ${formatMonth(months[last].month)}`}>
-                    {ticks.map(tick => (
-                        <g key={tick}>
-                            <line className="grid-line" x1={PAD.left} x2={WIDTH - PAD.right} y1={y(tick)} y2={y(tick)} />
-                            <text className="axis-text" x={PAD.left - 8} y={y(tick)} textAnchor="end" dominantBaseline="middle">
-                                {axisMoney.format(tick)}
-                            </text>
-                        </g>
-                    ))}
-                    {[0, Math.floor(last / 2), last].filter((index, position, all) => all.indexOf(index) === position).map(index => (
-                        <text key={index} className="axis-text" x={x(index)} y={HEIGHT - 8} textAnchor="middle">
-                            {formatMonth(months[index].month)}
-                        </text>
-                    ))}
-                    {SERIES.map(series => (
-                        <g key={series.key}>
-                            <polyline
-                                fill="none"
-                                stroke={series.color}
-                                strokeWidth="2"
-                                strokeLinejoin="round"
-                                points={months.map((month, index) => `${x(index)},${y(Number(month[series.key]))}`).join(' ')}
-                            />
-                        </g>
-                    ))}
-                    {hovered !== null && (
-                        <g>
-                            <line className="crosshair" x1={x(hovered)} x2={x(hovered)} y1={PAD.top} y2={PAD.top + plotHeight} />
-                            {SERIES.map(series => (
-                                <circle key={series.key} cx={x(hovered)} cy={y(Number(months[hovered][series.key]))} r="4" fill={series.color} stroke="#fff" strokeWidth="2" />
-                            ))}
-                        </g>
-                    )}
-                    {/* One full-height hit target per month, wider than the marks. */}
-                    {months.map((month, index) => (
-                        <rect
-                            key={month.month}
-                            data-month={month.month}
-                            x={x(index) - (step || plotWidth) / 2}
-                            y={PAD.top}
-                            width={step || plotWidth}
-                            height={plotHeight}
-                            fill="transparent"
-                            onMouseEnter={() => setHovered(index)}
-                            onMouseLeave={() => setHovered(null)}
-                        />
-                    ))}
-                </svg>
-                {hovered !== null && (
-                    <div className="chart-tooltip" role="status" style={{ left: `${(x(hovered) / WIDTH) * 100}%` }}>
-                        <strong>{formatMonth(months[hovered].month)}</strong>
-                        {SERIES.map(series => (
-                            <div key={series.key}>{series.label}: {formatMoney(months[hovered][series.key])}</div>
-                        ))}
-                    </div>
-                )}
-            </div>
-            <details>
-                <summary>View as table</summary>
+        <section className="chart" aria-label="Monthly figures">
+            <h3>Monthly figures</h3>
+            <div className="report-scroll">
                 <table>
                     <thead>
                         <tr>
-                            <th>Month</th>
-                            <th className="money">Net charges</th>
-                            <th className="money">Net payments</th>
+                            <th scope="col">Month</th>
+                            <th scope="col" className="money">Net charges</th>
+                            <th scope="col" className="money">Net payments</th>
+                            <th scope="col" className="money">Collection rate</th>
+                            <th scope="col" className="money">Returned payments</th>
+                            <th scope="col" className="money">Receivable at month end</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -172,11 +96,101 @@ function MonthlyActivityChart({ months }) {
                                 <td>{formatMonth(month.month)}</td>
                                 <td className="money">{formatMoney(month.charges)}</td>
                                 <td className="money">{formatMoney(month.payments)}</td>
+                                <td className="money">
+                                    {month.collection_rate === null ? '—' : percent.format(Number(month.collection_rate))}
+                                </td>
+                                <td className="money">
+                                    {formatMoney(month.returned_payments)}
+                                    {month.returned_count > 0 && ` (${month.returned_count})`}
+                                </td>
+                                <td className="money">{formatMoney(month.receivable)}</td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
-            </details>
+            </div>
+        </section>
+    );
+}
+
+const ROLL_FORWARD_COLUMNS = [
+    { key: 'pms_tenant_id', label: 'PMS ID', numeric: true },
+    { key: 'name', label: 'Name' },
+    { key: 'unit', label: 'Unit' },
+    { key: 'opening', label: 'Opening', numeric: true, money: true },
+    { key: 'charges', label: 'Net charges', numeric: true, money: true },
+    { key: 'payments', label: 'Net payments', numeric: true, money: true },
+    { key: 'closing', label: 'Closing', numeric: true, money: true },
+];
+
+// Opening + charges - payments = closing, per tenant and in total. This is
+// the statement an accountant ties to the general ledger at period end.
+function RollForward({ statement, query, onSelect }) {
+    const [exportError, setExportError] = useState(null);
+    const [sort, setSort] = useState({ key: 'name', direction: 'asc' });
+    const exportCsv = () => {
+        setExportError(null);
+        downloadFile(`/api/reports/roll-forward.csv${query}`, 'roll-forward.csv').catch(setExportError);
+    };
+    // Sorting reorders the rows only; the totals row stays the totals.
+    const { totals } = statement;
+    const rows = sortRows(statement.rows, sort, ROLL_FORWARD_COLUMNS, 'tenant_id');
+    const title = 'Receivable roll-forward';
+    return (
+        <section className="chart" aria-label={title}>
+            <div className="chart-heading">
+                <h3>{title}</h3>
+                <button onClick={exportCsv} disabled={rows.length === 0}>Export CSV</button>
+            </div>
+            <p className="chart-note">
+                Opening balance + net charges − net payments = closing balance, for
+                {statement.start ? ` ${formatDate(statement.start)}` : ' the first transaction'} to
+                {statement.end ? ` ${formatDate(statement.end)}` : ' the latest'}.
+            </p>
+            {exportError && <p role="alert">Export failed. {exportError.message}</p>}
+            {rows.length === 0 ? <p>No tenants had transactions on or before the end of this period.</p> : (
+                <div className="report-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                {ROLL_FORWARD_COLUMNS.map(column => (
+                                    <SortableHeader key={column.key} column={column} sort={sort} onSort={setSort} />
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map(row => (
+                                <tr key={row.tenant_id}>
+                                    <td>{row.pms_tenant_id ?? '—'}</td>
+                                    <td>
+                                        <button
+                                            className="link-button"
+                                            aria-label={`View ledger for ${row.name}`}
+                                            onClick={() => onSelect({ id: row.tenant_id, pms_tenant_id: row.pms_tenant_id, name: row.name, unit: row.unit })}
+                                        >
+                                            {row.name}
+                                        </button>
+                                    </td>
+                                    <td>{row.unit}</td>
+                                    <td className="money">{formatMoney(row.opening)}</td>
+                                    <td className="money">{formatMoney(row.charges)}</td>
+                                    <td className="money">{formatMoney(row.payments)}</td>
+                                    <td className="money">{formatMoney(row.closing)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th scope="row" colSpan={3}>Total, {rows.length} tenants</th>
+                                <td className="money">{formatMoney(totals.opening)}</td>
+                                <td className="money">{formatMoney(totals.charges)}</td>
+                                <td className="money">{formatMoney(totals.payments)}</td>
+                                <td className="money">{formatMoney(totals.closing)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            )}
         </section>
     );
 }
@@ -184,36 +198,77 @@ function MonthlyActivityChart({ months }) {
 function Insights() {
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
+    const [range, setRange] = useState({ start: '', end: '' });
     const [ledgerTenant, setLedgerTenant] = useState(null);
     const closeLedger = useCallback(() => setLedgerTenant(null), []);
+    const query = rangeQuery(range);
+    const asOf = range.end ? `?as_of=${range.end}` : '';
 
     useEffect(() => {
         let ignore = false;
-        Promise.all([fetchJson('/api/tenants/'), fetchJson('/api/reports/monthly-activity/')])
-            .then(([tenants, months]) => {
-                if (!ignore) setData({ tenants, months });
+        Promise.all([
+            // Balances are a standing figure, so they are taken as of the end
+            // of the period; the monthly series and roll-forward cover it.
+            getJson(`/api/tenants/${asOf}`),
+            getJson(`/api/reports/monthly-activity/${query}`),
+            getJson(`/api/reports/roll-forward/${query}`),
+        ])
+            .then(([tenants, months, statement]) => {
+                // `query` is kept with the data so headings describe the
+                // figures on screen, not a period still being fetched.
+                if (!ignore) {
+                    setData({ tenants, months, statement, query, end: range.end });
+                    setError(null);
+                }
             })
             .catch(error => {
                 console.error("Error fetching insights:", error);
                 if (!ignore) setError(error);
             });
         return () => { ignore = true; };
-    }, []);
+        // range.end is covered by asOf and query.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [asOf, query]);
 
-    if (error) {
-        return <div role="alert">Error loading insights: {error.message}</div>;
-    }
+    const setRangeField = name => event => setRange({ ...range, [name]: event.target.value });
+    const controls = (
+        <div className="tenant-filters insight-filters">
+            <label>
+                From
+                <input type="date" value={range.start} max={range.end || undefined} onChange={setRangeField('start')} />
+            </label>
+            <label>
+                To
+                <input type="date" value={range.end} min={range.start || undefined} onChange={setRangeField('end')} />
+            </label>
+            <button onClick={() => setRange({ start: '', end: '' })} disabled={!query}>All dates</button>
+        </div>
+    );
+
     if (!data) {
-        return <div>Loading insights...</div>;
+        return (
+            <div className="insights">
+                <h2>Insights</h2>
+                {controls}
+                {error ? <div role="alert">Error loading insights: {error.message}</div> : <div>Loading insights...</div>}
+            </div>
+        );
     }
 
     const summary = portfolioSummary(data.tenants);
+    const when = data.end ? `as of ${formatDate(data.end)}` : 'today';
     return (
         <div className="insights">
             <h2>Insights</h2>
+            {controls}
+            {error && (
+                <div role="alert">
+                    Error loading insights: {error.message} The figures below are from before this error.
+                </div>
+            )}
             <div className="stat-row">
                 <StatTile
-                    label="Total outstanding"
+                    label={`Total outstanding, ${when}`}
                     value={formatMoney(summary.outstanding)}
                     detail={`${summary.owingCount} tenants with a balance due`}
                 />
@@ -233,14 +288,18 @@ function Insights() {
                     detail="tenants with a $0.00 balance"
                 />
             </div>
-            <MonthlyActivityChart months={data.months} />
+            <RollForward statement={data.statement} query={data.query} onSelect={setLedgerTenant} />
+            <MonthlyChart title="Net charges and payments by month" months={data.months} series={ACTIVITY} kind="bars" />
+            <MonthlyChart title="Total receivable at month end" months={data.months} series={RECEIVABLE} kind="line" />
+            <MonthlyChart title="Returned payments by month" months={data.months} series={RETURNED} kind="bars" />
+            <MonthlyTable months={data.months} />
             <BarList
-                title="Outstanding balance by unit prefix"
+                title={`Outstanding balance by unit prefix, ${when}`}
                 rows={outstandingByUnitPrefix(data.tenants)}
                 emptyText="No tenants yet."
             />
             <BarList
-                title="Largest balances due"
+                title={`Largest balances due, ${when}`}
                 rows={largestBalances(data.tenants)}
                 emptyText="No tenant has a balance due."
                 onSelect={setLedgerTenant}

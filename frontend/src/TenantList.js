@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import LabelChip from './LabelChip';
 import LabelEditor from './LabelEditor';
+import SortableHeader from './SortableHeader';
 import TenantLedger from './TenantLedger';
 import { getJson } from './api';
-import { formatDateTime, formatMoney } from './format';
+import { formatDate, formatDateTime, formatMoney } from './format';
 import {
-    COLUMNS, NO_FILTERS, filterTenants, nextSort, sortTenants, unitPrefixes,
+    COLUMNS, NO_FILTERS, filterTenants, sortTenants, unitPrefixes,
 } from './tenantFilters';
 
 function TenantList() {
@@ -15,25 +16,33 @@ function TenantList() {
     const [ledgerTenant, setLedgerTenant] = useState(null);
     const [sort, setSort] = useState({ key: 'name', direction: 'asc' });
     const [filters, setFilters] = useState(NO_FILTERS);
+    // Blank means today. Otherwise balances are as of the close of this day.
+    const [asOf, setAsOf] = useState('');
     const closeLedger = useCallback(() => setLedgerTenant(null), []);
     const [labels, setLabels] = useState([]);
     const [labelTenant, setLabelTenant] = useState(null);
     const closeLabels = useCallback(() => setLabelTenant(null), []);
 
     useEffect(() => {
-        fetch('/api/tenants/')
+        let ignore = false;
+        fetch(`/api/tenants/${asOf ? `?as_of=${asOf}` : ''}`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return response.json();
             })
-            .then(data => setTenants(data))
+            // The date is kept with the rows so the heading always describes
+            // the balances on screen.
+            .then(data => {
+                if (!ignore) setTenants(data.map(tenant => ({ ...tenant, asOf })));
+            })
             .catch(error => {
                 console.error("Error fetching tenants:", error);
-                setError(error);
+                if (!ignore) setError(error);
             });
-    }, []);
+        return () => { ignore = true; };
+    }, [asOf]);
 
     useEffect(() => {
         // Labels are an extra: the list is still usable if they fail to load.
@@ -56,6 +65,7 @@ function TenantList() {
     const filtered = Object.keys(NO_FILTERS).some(name => filters[name] !== '');
     // ISO timestamps sort as text; the newest is when the PMS was last read.
     const lastSynced = tenants.map(tenant => tenant.ledger_synced_at).filter(Boolean).sort().pop();
+    const shownAsOf = tenants.length > 0 ? tenants[0].asOf : '';
     const neverSynced = tenants.filter(tenant => !tenant.ledger_synced_at).length;
 
     return (
@@ -93,6 +103,10 @@ function TenantList() {
                             </select>
                         </label>
                         <label>
+                            Balances as of
+                            <input type="date" value={asOf} onChange={event => setAsOf(event.target.value)} />
+                        </label>
+                        <label>
                             Min balance
                             <input
                                 type="number"
@@ -117,32 +131,18 @@ function TenantList() {
                             Showing {visibleTenants.length} of {tenants.length} tenants
                         </span>
                     </div>
+                    {shownAsOf && (
+                        <p className="as-of-note" role="note">
+                            Balances are as of {formatDate(shownAsOf)}, not today.
+                        </p>
+                    )}
                     <table>
                         <caption className="visually-hidden">Tenants and their balances</caption>
                         <thead>
                             <tr>
-                                {COLUMNS.map(column => {
-                                    const active = sort.key === column.key;
-                                    const direction = sort.direction === 'asc' ? 'ascending' : 'descending';
-                                    return (
-                                        <th
-                                            key={column.key}
-                                            scope="col"
-                                            className={column.key === 'balance' ? 'money' : undefined}
-                                            aria-sort={active ? direction : 'none'}
-                                        >
-                                            <button
-                                                className="sort-button"
-                                                onClick={() => setSort(nextSort(sort, column.key))}
-                                            >
-                                                {column.label}
-                                                <span aria-hidden="true">
-                                                    {active ? (sort.direction === 'asc' ? ' ▲' : ' ▼') : ''}
-                                                </span>
-                                            </button>
-                                        </th>
-                                    );
-                                })}
+                                {COLUMNS.map(column => (
+                                    <SortableHeader key={column.key} column={column} sort={sort} onSort={setSort} />
+                                ))}
                                 <th scope="col">Labels</th>
                                 <th scope="col">Action</th>
                             </tr>

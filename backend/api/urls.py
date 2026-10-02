@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    label_list, monthly_activity_report, tenant_labels, tenant_ledger, tenant_ledger_csv,
+    label_list, monthly_activity_report, roll_forward_csv, roll_forward_report, tenant_labels, tenant_ledger, tenant_ledger_csv,
     tenant_list, transaction_list,
 )
 
@@ -12,4 +12,6 @@ urlpatterns = [
     path('labels/', label_list, name='label_list'),
     path('transactions/', transaction_list, name='transaction_list'),
     path('reports/monthly-activity/', monthly_activity_report, name='monthly_activity_report'),
+    path('reports/roll-forward/', roll_forward_report, name='roll_forward_report'),
+    path('reports/roll-forward.csv', roll_forward_csv, name='roll_forward_csv'),
 ]

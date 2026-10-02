@@ -17,14 +17,12 @@ flowchart TD
     D --> E
     E -- no --> X[CommandError: exit non-zero,<br/>nothing written]
     E -- yes --> F[For each PMS tenant]
-    F --> G{Has tenant_id<br/>and a ledger list?}
+    F --> G{Usable tenant_id, not seen<br/>already, and a ledger list?}
     G -- no --> R[Record error, leave tenant untouched]
     G -- yes --> H[Open a database transaction<br/>for this tenant]
     H --> I{Local tenant with this<br/>pms_tenant_id?}
     I -- yes --> L[Update name and unit from the PMS]
-    I -- no --> J{Exactly one unlinked local<br/>tenant with the same name?}
-    J -- yes --> K[Link it: set pms_tenant_id] --> L
-    J -- no --> M[Create a new tenant] --> L
+    I -- no --> M[Create a new tenant] --> L
     L --> N{Every ledger entry valid?<br/>known type, ISO date,<br/>whole cents, unique id}
     N -- no --> O[Roll back this tenant] --> R
     N -- yes --> E2{PMS ledger empty but<br/>entries are on file?}
@@ -55,7 +53,7 @@ sequenceDiagram
     participant DB as SQLite
 
     U->>R: Open the dashboard
-    R->>D: GET /api/tenants/
+    R->>D: GET /api/tenants/?as_of=
     D->>DB: Tenants annotated with balance<br/>(one query, Tenant.objects.with_balance)
     DB-->>D: rows
     D-->>R: [{id, pms_tenant_id, name, unit, balance,<br/>ledger_synced_at, labels}]
@@ -78,9 +76,10 @@ sequenceDiagram
     D-->>R: The tenant's labels
 
     U->>R: Open the Insights tab
-    R->>D: GET /api/tenants/ and<br/>GET /api/reports/monthly-activity/
-    D-->>R: balances, monthly charges and payments
-    R-->>U: Totals, monthly trend, balance by unit prefix,<br/>largest balances due
+    U->>R: Choose a From and To date
+    R->>D: GET /api/tenants/?as_of=end<br/>GET /api/reports/monthly-activity/?start=&end=<br/>GET /api/reports/roll-forward/?start=&end=
+    D-->>R: balances as of the end date, monthly series,<br/>roll-forward rows and control totals
+    R-->>U: Totals, roll-forward statement, monthly charts<br/>and table, balance by unit prefix, largest balances
 ```
 
 Code: views in `backend/api/views.py`, balance rules in

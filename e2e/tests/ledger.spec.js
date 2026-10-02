@@ -178,9 +178,9 @@ test('the Insights tab charts the portfolio', async ({ page }) => {
     await page.getByRole('tab', { name: 'Insights' }).click();
 
     // Bob 2,425 + Daisy 1,240 + Emma 5,116.
-    await expect(page.locator('.stat-tile').first()).toContainText('Total outstanding$8,781.00');
+    await expect(page.locator('.stat-tile').first()).toContainText('Total outstanding, today$8,781.00');
     await expect(page.locator('.stat-tile').first()).toContainText('3 tenants with a balance due');
-    const largest = page.getByRole('region', { name: 'Largest balances due' });
+    const largest = page.getByRole('region', { name: 'Largest balances due, today' });
     await expect(largest.getByRole('listitem')).toHaveText([
         'Emma Mitchell (F508)$5,116.00', 'Bob The Builder (B205)$2,425.00', 'Daisy Ridley (C303)$1,240.00',
     ]);
@@ -196,7 +196,7 @@ test('the Insights tab charts the portfolio', async ({ page }) => {
 
 test('a name under Largest balances due opens that tenant\'s ledger', async ({ page }) => {
     await page.getByRole('tab', { name: 'Insights' }).click();
-    const largest = page.getByRole('region', { name: 'Largest balances due' });
+    const largest = page.getByRole('region', { name: 'Largest balances due, today' });
 
     await largest.getByRole('button', { name: 'View ledger for Emma Mitchell' }).click();
 
@@ -323,4 +323,100 @@ test('dragging across the balance chart narrows the ledger to that period', asyn
 
     await dialog.getByRole('button', { name: 'All dates' }).click();
     await expect(ledgerRows(dialog)).toHaveCount(rowsBefore);
+});
+
+test('the roll-forward ties to the total outstanding, for all time and for a period', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Insights' }).click();
+    const statement = page.getByRole('region', { name: 'Receivable roll-forward' });
+    const totals = statement.locator('tfoot td');
+
+    // All time: nothing carried in, and the closing total is what is owed
+    // net of the tenants in credit (none in this sample).
+    await expect(statement.locator('tfoot th')).toHaveText('Total, 5 tenants');
+    await expect(totals.nth(0)).toHaveText('$0.00');
+    await expect(totals.nth(3)).toHaveText('$8,781.00');
+
+    await page.getByLabel('From', { exact: true }).fill('2023-02-01');
+    await page.getByLabel('To', { exact: true }).fill('2023-02-28');
+
+    const tile = page.locator('.stat-tile').first();
+    await expect(tile).toContainText('Total outstanding, as of 02/28/2023');
+    await expect(statement).toContainText('02/01/2023 to 02/28/2023.');
+    // Two different queries must agree: the closing total of the statement
+    // and the sum of every tenant's balance as of the same day.
+    const outstanding = (await tile.locator('.stat-value').textContent()).trim();
+    await expect(totals.nth(3)).toHaveText(outstanding);
+    // Daisy carried $20.00 into February and it was still $20.00 at the end.
+    const daisy = statement.locator('tbody tr').filter({ hasText: 'Daisy Ridley' }).locator('td');
+    await expect(daisy.nth(3)).toHaveText('$20.00');
+    await expect(daisy.nth(6)).toHaveText('$20.00');
+
+    await page.getByRole('button', { name: 'All dates' }).click();
+    await expect(totals.nth(3)).toHaveText('$8,781.00');
+});
+
+test('the roll-forward exports as CSV with a totals row', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Insights' }).click();
+    const statement = page.getByRole('region', { name: 'Receivable roll-forward' });
+    await expect(statement.locator('tfoot th')).toHaveText('Total, 5 tenants');
+
+    const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        statement.getByRole('button', { name: 'Export CSV' }).click(),
+    ]);
+
+    expect(download.suggestedFilename()).toBe('roll-forward-start-to-latest.csv');
+    const lines = require('fs').readFileSync(await download.path(), 'utf8').trim().split(/\r?\n/);
+    expect(lines[0]).toBe('PMS tenant id,Name,Unit,Opening,Charges,Payments,Closing');
+    expect(lines).toHaveLength(7);
+    expect(lines[6]).toMatch(/^,Total,,0\.00,[\d.]+,[\d.]+,8781\.00$/);
+});
+
+test('Insights charts the receivable and returned payments, and tabulates the collection rate', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Insights' }).click();
+
+    const receivable = page.getByRole('region', { name: 'Total receivable at month end' });
+    await receivable.locator('rect[data-month]').last().hover();
+    // The last month's receivable is the total outstanding.
+    await expect(receivable.getByRole('status')).toContainText('Receivable: $8,781.00');
+    await expect(page.getByRole('region', { name: 'Returned payments by month' }).getByRole('img')).toBeVisible();
+    // The comparison of charges and payments is drawn as bars, two per month.
+    const activity = page.getByRole('region', { name: 'Net charges and payments by month' });
+    const months = await activity.locator('rect[data-month]').count();
+    await expect(activity.locator('rect:not([data-month])')).toHaveCount(months * 2);
+
+    const table = page.getByRole('region', { name: 'Monthly figures' });
+    await expect(table.getByRole('columnheader', { name: 'Collection rate' })).toBeVisible();
+    await expect(table.locator('tbody tr').last().locator('td').last()).toHaveText('$8,781.00');
+});
+
+test('the tenant list can show balances as of a past date', async ({ page }) => {
+    await expect(rowFor(page, 'Daisy Ridley')).toContainText('$1,240.00');
+
+    await page.getByLabel('Balances as of').fill('2023-02-28');
+
+    await expect(rowFor(page, 'Daisy Ridley')).toContainText('$20.00');
+    await expect(page.getByRole('note')).toHaveText('Balances are as of 02/28/2023, not today.');
+
+    await page.getByLabel('Balances as of').fill('');
+    await expect(rowFor(page, 'Daisy Ridley')).toContainText('$1,240.00');
+    await expect(page.getByRole('note')).toHaveCount(0);
+});
+
+test('the roll-forward sorts by closing balance, with the totals row staying last', async ({ page }) => {
+    await page.getByRole('tab', { name: 'Insights' }).click();
+    const statement = page.getByRole('region', { name: 'Receivable roll-forward' });
+    const names = statement.locator('tbody tr td:nth-child(2)');
+    await expect(names).toHaveText([
+        'Alice Wonderland', 'Bob The Builder', 'Christopher Jackson', 'Daisy Ridley', 'Emma Mitchell',
+    ]);
+
+    const closing = statement.getByRole('columnheader', { name: 'Closing' });
+    await closing.getByRole('button').click();
+    await closing.getByRole('button').click();
+
+    await expect(closing).toHaveAttribute('aria-sort', 'descending');
+    await expect(names.first()).toHaveText('Emma Mitchell');
+    await expect(names.nth(1)).toHaveText('Bob The Builder');
+    await expect(statement.locator('tfoot td').nth(3)).toHaveText('$8,781.00');
 });

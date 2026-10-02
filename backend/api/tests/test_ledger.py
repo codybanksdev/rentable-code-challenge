@@ -129,10 +129,10 @@ def test_monthly_activity_nets_credits_and_returned_payments_per_month():
 
     body = APIClient().get('/api/reports/monthly-activity/').json()
 
-    assert body == [
-        {'month': '2023-01', 'charges': '1420.00', 'payments': '1000.00'},
-        {'month': '2023-02', 'charges': '0.00', 'payments': '-1000.00'},
-        {'month': '2023-03', 'charges': '35.00', 'payments': '0.00'},
+    assert [(m['month'], m['charges'], m['payments']) for m in body] == [
+        ('2023-01', '1420.00', '1000.00'),
+        ('2023-02', '0.00', '-1000.00'),
+        ('2023-03', '35.00', '0.00'),
     ]
 
 
@@ -205,9 +205,8 @@ def test_entries_removed_from_the_pms_are_listed_but_do_not_count():
     assert body['balance'] == '1500.00'
     assert [e['description'] for e in body['removed_entries']] == ['Late Fee Charge']
     assert client.get('/api/tenants/').json()[0]['balance'] == '1500.00'
-    assert client.get('/api/reports/monthly-activity/').json() == [
-        {'month': '2023-01', 'charges': '1500.00', 'payments': '0.00'},
-    ]
+    monthly = client.get('/api/reports/monthly-activity/').json()
+    assert [(m['month'], m['charges'], m['receivable']) for m in monthly] == [('2023-01', '1500.00', '1500.00')]
 
 
 def test_ledger_csv_matches_the_ledger():

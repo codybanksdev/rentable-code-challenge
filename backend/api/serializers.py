@@ -81,3 +81,29 @@ class MonthlyActivitySerializer(serializers.Serializer):
     month = serializers.DateField(format='%Y-%m')
     charges = serializers.DecimalField(max_digits=14, decimal_places=2)
     payments = serializers.DecimalField(max_digits=14, decimal_places=2)
+    returned_payments = serializers.DecimalField(max_digits=14, decimal_places=2)
+    returned_count = serializers.IntegerField()
+    collection_rate = serializers.DecimalField(max_digits=8, decimal_places=4, allow_null=True)
+    receivable = serializers.DecimalField(max_digits=14, decimal_places=2)
+
+class RollForwardRowSerializer(serializers.Serializer):
+    tenant_id = serializers.IntegerField()
+    pms_tenant_id = serializers.IntegerField(allow_null=True)
+    name = serializers.CharField()
+    unit = serializers.CharField(allow_null=True)
+    opening = serializers.DecimalField(max_digits=14, decimal_places=2)
+    charges = serializers.DecimalField(max_digits=14, decimal_places=2)
+    payments = serializers.DecimalField(max_digits=14, decimal_places=2)
+    closing = serializers.DecimalField(max_digits=14, decimal_places=2)
+
+class RollForwardTotalsSerializer(serializers.Serializer):
+    opening = serializers.DecimalField(max_digits=14, decimal_places=2)
+    charges = serializers.DecimalField(max_digits=14, decimal_places=2)
+    payments = serializers.DecimalField(max_digits=14, decimal_places=2)
+    closing = serializers.DecimalField(max_digits=14, decimal_places=2)
+
+class RollForwardSerializer(serializers.Serializer):
+    start = serializers.DateField(allow_null=True)
+    end = serializers.DateField(allow_null=True)
+    rows = RollForwardRowSerializer(many=True)
+    totals = RollForwardTotalsSerializer()

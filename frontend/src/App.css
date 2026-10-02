@@ -597,3 +597,68 @@
 .label-group td.money {
   text-align: right;
 }
+
+.insight-filters {
+  justify-content: flex-start;
+  margin-bottom: 20px;
+}
+
+.as-of-note {
+  margin: 12px 0 0;
+  font-weight: bold;
+}
+
+.chart-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.chart-note {
+  margin: 0 0 8px;
+  font-size: 0.85em;
+  color: #52514e;
+}
+
+/* A long report scrolls inside its own box, under a sticky header, with the
+   totals row pinned to the bottom. */
+.report-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+}
+
+.report-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-scroll th,
+.report-scroll td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+
+.report-scroll th.money,
+.report-scroll td.money {
+  text-align: right;
+}
+
+.report-scroll thead th {
+  position: sticky;
+  top: 0;
+  background-color: #f2f2f2;
+  color: #333;
+}
+
+.report-scroll tfoot th,
+.report-scroll tfoot td {
+  position: sticky;
+  bottom: 0;
+  background-color: #f2f2f2;
+  font-weight: bold;
+  border-top: 2px solid #9a9994;
+}
