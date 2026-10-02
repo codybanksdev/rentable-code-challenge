@@ -233,7 +233,8 @@
 }
 
 .stat-tile {
-  flex: 1 1 200px;
+  /* Narrow enough that four tiles share one row at the page's full width. */
+  flex: 1 1 150px;
   border: 1px solid #ddd;
   border-radius: 6px;
   padding: 14px 16px;
@@ -246,7 +247,7 @@
 }
 
 .stat-value {
-  font-size: 1.8em;
+  font-size: 1.5em;
   font-weight: bold;
   font-variant-numeric: tabular-nums;
   margin: 4px 0;

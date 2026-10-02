@@ -83,6 +83,24 @@ What was built, in the order an accountant would use it:
 * **Insights**: total outstanding, deposits held, a receivable roll-forward statement with control totals and CSV export, and monthly charts, all for a chosen date range.
 * **Labels** for marking tenants ("At risk", "Requires follow up", "Defaulting", or your own).
 
+A tenant's ledger, with the balance split into what is owed and the deposit held:
+
+![Ledger dialog showing totals, deposit held, a balance-over-time chart and the transactions](docs/screenshots/ledger.png)
+
+The tenant list, sorted by balance, with labels:
+
+![Tenant list with PMS id, unit, balance and labels](docs/screenshots/tenant-list.png)
+
+Insights for a chosen period, with the receivable roll-forward:
+
+![Insights tiles and the roll-forward statement for January to June 2023](docs/screenshots/insights-roll-forward.png)
+
+![Monthly net charges against net payments, and the total receivable at month end](docs/screenshots/insights-charts.png)
+
+Tenants grouped by label:
+
+![Labels tab listing tenants under At risk, Defaulting and Requires follow up](docs/screenshots/labels.png)
+
 The documents are indexed in [`docs/README.md`](docs/README.md). Start with `docs/decisions.md`:
 
 * [`docs/decisions.md`](docs/decisions.md): what was wrong with the original code, what changed, and why.
