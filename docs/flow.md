@@ -60,10 +60,10 @@ sequenceDiagram
     participant DB as SQLite
 
     U->>R: Open the dashboard
-    R->>D: GET /api/tenants/?as_of=
+    R->>D: GET /api/tenants/ (with ?as_of= once a date is chosen)
     D->>DB: Tenants annotated with balance<br/>(one query, Tenant.objects.with_balance)
     DB-->>D: rows
-    D-->>R: [{id, pms_tenant_id, name, unit, balance,<br/>ledger_synced_at, labels}]
+    D-->>R: [{id, pms_tenant_id, name, unit, balance,<br/>deposit_held, ledger_synced_at, labels}]
     R-->>U: Tenant table: sort by any column, filter by<br/>unit prefix, label and balance range
 
     U->>R: Click View Ledger
@@ -71,7 +71,7 @@ sequenceDiagram
     D->>DB: That tenant's transactions
     DB-->>D: rows
     Note over D: build_ledger: sort by date then PMS id, roll<br/>entries before start into an opening balance,<br/>accumulate the running balance in Decimal
-    D-->>R: {tenant, opening_balance, total_charges,<br/>total_payments, balance, entries, removed_entries}
+    D-->>R: {tenant, start, end, opening_balance, total_charges,<br/>total_payments, balance, rent_and_fees_receivable,<br/>deposit_due, deposit_held, entries, removed_entries}
     R-->>U: Ledger dialog: totals, balance chart,<br/>Date, Description, Charge, Payment, Balance
 
     U->>R: Export CSV

@@ -4,7 +4,7 @@ import csv
 FORMULA_PREFIXES = ('=', '+', '-', '@')
 
 
-def _text(value):
+def csv_text(value):
     """Stop text such as "=HYPERLINK(...)" running as a formula.
 
     Applied to every cell that holds PMS text. Leading whitespace is ignored
@@ -37,11 +37,11 @@ def write_ledger_csv(ledger, output):
         is_payment = transaction.type == transaction.Type.PAYMENT
         writer.writerow([
             transaction.date.isoformat(),
-            _text(transaction.description),
-            transaction.type,
+            csv_text(transaction.description),
+            transaction.get_type_display(),
             transaction.get_category_display(),
             '' if is_payment else transaction.amount,
             transaction.amount if is_payment else '',
             entry.running_balance,
-            _text(transaction.pms_id),
+            csv_text(transaction.pms_id),
         ])

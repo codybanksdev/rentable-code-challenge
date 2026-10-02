@@ -35,10 +35,12 @@ function rangeQuery({ start, end }) {
     return query ? `?${query}` : '';
 }
 
-function TenantLedger({ tenant, onClose }) {
+const ALL_DATES = { start: '', end: '' };
+
+function TenantLedger({ tenant, onClose, initialRange = ALL_DATES }) {
     const [ledger, setLedger] = useState(null);
     const [error, setError] = useState(null);
-    const [range, setRange] = useState({ start: '', end: '' });
+    const [range, setRange] = useState(initialRange);
     const { dialogRef, headingRef } = useDialog(onClose);
     const query = rangeQuery(range);
 
@@ -126,7 +128,7 @@ function TenantLedger({ tenant, onClose }) {
                                 To
                                 <input type="date" value={range.end} min={range.start || undefined} onChange={setRangeField('end')} />
                             </label>
-                            <button onClick={() => setRange({ start: '', end: '' })} disabled={!query}>
+                            <button onClick={() => setRange(ALL_DATES)} disabled={!query}>
                                 All dates
                             </button>
                             <button className="ledger-export" onClick={exportCsv}>Export CSV</button>

@@ -1,7 +1,7 @@
 # Decisions
 
-What was wrong with the original code, what was done about it, and why. Each
-decision names the alternative that was not taken.
+What was wrong with the original code, what was done about it, and why. Where
+there was a real alternative, the decision names it.
 
 The request: an accounting team wants to open a tenant's ledger, see the
 transactions and the balance, and reconcile against their books. Everything
@@ -27,7 +27,8 @@ every entry a `charge` or a `payment`, and 213 of them negative.
   - [Entries the PMS no longer has are marked removed, not deleted](#entries-the-pms-no-longer-has-are-marked-removed-not-deleted)
   - [Migration 0004 deletes pre-existing transactions](#migration-0004-deletes-pre-existing-transactions)
   - [Each ledger records when it was synced](#each-ledger-records-when-it-was-synced)
-  - [`--source`, `--dry-run`, and structured logs](#--source---dry-run-and-structured-logs)
+  - [`--source` and `--dry-run`](#--source-and---dry-run)
+- [Logging](#logging)
 - [What the accountant sees](#what-the-accountant-sees)
   - [The ledger](#the-ledger)
   - [The tenant list](#the-tenant-list)
@@ -171,14 +172,30 @@ import restores them. With the original command the table was always empty.
 with the PMS. A rejected ledger keeps its old time, so the screen never calls
 a stale ledger fresh.
 
-### `--source`, `--dry-run`, and structured logs
+### `--source` and `--dry-run`
 
 `--source file.json` imports a saved PMS response; the tests and the
 end-to-end suite use tenants 1 to 5 exactly as the API returned them, so they
 assert against real data without the network. `--dry-run` reports what would
-change and writes nothing. The import logs named events with fields;
-`LOG_FORMAT=json` prints them one JSON object per line, using the standard
-library and a 20-line formatter.
+change and writes nothing.
+
+## Logging
+
+The backend logs named events with fields, one JSON object per line, using
+the standard library and a 20-line formatter (`backend/api/logging.py`).
+`LOG_FORMAT=text` prints the same events as a readable line.
+
+- `api.request` for every API call: method, path, query string, status and
+  duration. A 4xx is a warning and a 5xx an error, so problems stand out when
+  filtering by level. Bodies are never logged.
+- `pms.fetch.succeeded` / `pms.fetch.failed`, `pms.import.finished` and
+  `pms.import.ledger_skipped` for the import.
+- `ledger.exported`, `roll_forward.exported`, `tenant.labels_changed` and
+  `label.created`: financial data leaving the application, and the only
+  writes the API allows, each leave a trace.
+
+JSON is the default because the logs are for a machine to collect; a person
+at a terminal can ask for text.
 
 *Not taken:* OpenTelemetry. One outbound call and one database do not need
 tracing; the durations are already fields on the log events.
@@ -231,11 +248,17 @@ the period; the tiles and balance lists are standing figures, so they are as
 of the end date and say so. The receivable is a level that carries from month
 to month, so it is a line and always cumulative from the first transaction;
 charges, payments and returned payments belong to their month, so they are
-bars. The collection rate is a table column: blank when nothing was charged,
-and over 100% when arrears are paid.
+bars. The collection rate is a table column: blank when net charges are zero
+or negative, and over 100% when arrears are paid.
 
 "Total outstanding" counts only tenants who owe. It is not reduced by other
 tenants' credits, because a credit on one account does not pay down another.
+The roll-forward's closing total and the receivable line are net of tenants
+in credit, so total outstanding less credits held equals the closing total;
+the statement says so on the page.
+
+A ledger opened from the roll-forward opens on the same period, so its
+closing balance is the one in the row that was clicked.
 
 The charts are plain SVG in two components of about 130 lines each, rather
 than a chart library. Each chart's numbers are also on the page as a table.
@@ -262,7 +285,9 @@ never touches them.
 
 - **Authentication and per-customer scoping.** The template has none. It is
   the first thing a real deployment needs: today anyone who can reach the API
-  can read every ledger and edit labels.
+  can read every ledger and edit labels. The Django admin is deliberately
+  open too while `DEBUG` is on (`ADMIN_AUTO_LOGIN`), so the data can be
+  inspected without creating an account; it is off whenever `DEBUG` is off.
 - **Pagination.** 200 tenants and at most 51 entries per ledger.
 - **Scheduled imports.** The import is safe to schedule; nothing schedules it.
 - **Recording transactions here.** Built and tested, then taken out: see

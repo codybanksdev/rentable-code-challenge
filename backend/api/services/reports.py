@@ -5,6 +5,7 @@ from django.db.models import Count, DecimalField, F, Q, Sum, Value
 from django.db.models.functions import Coalesce, TruncMonth
 
 from api.models import Tenant, Transaction
+from api.services.ledger_csv import csv_text
 
 MONEY = DecimalField(max_digits=14, decimal_places=2)
 ZERO = Decimal('0.00')
@@ -88,22 +89,25 @@ def roll_forward(start=None, end=None):
     relation = Q(transactions__removed_from_pms_at__isnull=True)
     if end is not None:
         relation &= Q(transactions__date__lte=end)
+    charge = Q(transactions__type=Transaction.Type.CHARGE)
+    payment = Q(transactions__type=Transaction.Type.PAYMENT)
     in_period = relation
-    before = Q(pk__in=[])  # matches nothing: with no start, nothing is before it
+    opening = {}
     if start is not None:
         in_period = relation & Q(transactions__date__gte=start)
         before = relation & Q(transactions__date__lt=start)
-    charge = Q(transactions__type=Transaction.Type.CHARGE)
-    payment = Q(transactions__type=Transaction.Type.PAYMENT)
+        opening = {
+            'opening_charges': _sum('transactions__amount', before & charge),
+            'opening_payments': _sum('transactions__amount', before & payment),
+        }
 
     tenants = (
         Tenant.objects
         .annotate(
             entries=Count('transactions', filter=relation),
-            opening_charges=_sum('transactions__amount', before & charge),
-            opening_payments=_sum('transactions__amount', before & payment),
             charges=_sum('transactions__amount', in_period & charge),
             payments=_sum('transactions__amount', in_period & payment),
+            **opening,
         )
         .filter(entries__gt=0)
         .order_by('name', 'id')
@@ -113,7 +117,11 @@ def roll_forward(start=None, end=None):
     totals = {'opening': ZERO, 'charges': ZERO, 'payments': ZERO, 'closing': ZERO}
     for tenant in tenants:
         # SQLite hands sums back without a fixed scale; pin them to cents.
-        opening = (tenant.opening_charges - tenant.opening_payments).quantize(CENT)
+        # With no start date nothing comes before the period, so it opens at zero.
+        opening = (
+            (tenant.opening_charges - tenant.opening_payments).quantize(CENT)
+            if start is not None else ZERO
+        )
         charges = tenant.charges.quantize(CENT)
         payments = tenant.payments.quantize(CENT)
         row = {
@@ -138,15 +146,9 @@ def write_roll_forward_csv(statement, output):
     for row in statement['rows']:
         writer.writerow([
             '' if row['pms_tenant_id'] is None else row['pms_tenant_id'],
-            _text(row['name']), _text(row['unit'] or ''),
+            csv_text(row['name']), csv_text(row['unit'] or ''),
             row['opening'], row['charges'], row['payments'], row['closing'],
         ])
     totals = statement['totals']
     writer.writerow(['', 'Total', '', totals['opening'], totals['charges'], totals['payments'], totals['closing']])
 
-
-def _text(value):
-    # Same guard as the ledger export; imported lazily to keep the two
-    # exports free of an import cycle.
-    from api.services.ledger_csv import _text as guard
-    return guard(value)

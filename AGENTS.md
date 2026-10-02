@@ -23,8 +23,10 @@ Run the tests for whatever you touched before saying a change is done.
   The frontend never computes a balance. It converts to a number only to
   format, to draw, or to total balances the server already computed.
 - **A balance is derived, never stored.** `build_ledger` and
-  `Tenant.objects.with_balance()` are the only two definitions, and a test
-  asserts they agree. Do not add a third.
+  `Tenant.objects.with_balance()` are the reference definitions.
+  `reports.roll_forward` and `reports.monthly_activity` derive balances on
+  their own and are tested against them (`test_reports.py`). Do not add
+  another derivation without a test that ties it back to `build_ledger`.
 - **Sign comes from the PMS, direction comes from `type`.** A negative charge
   is a credit; a negative payment is a returned payment. Do not use `abs()`.
 - **A description is read in exactly one place**, `services/categories.py`,
@@ -48,7 +50,8 @@ Run the tests for whatever you touched before saying a change is done.
 - Backend tests are plain pytest functions in `backend/api/tests/`. Prefer the
   real-data fixture (`fixtures/pms_tenants_sample.json`) to invented numbers.
 - Frontend rules that can be pure functions are (`tenantFilters.js`,
-  `insightsData.js`, `ledgerStats.js`) and are tested without rendering.
+  `insightsData.js`, `ledgerStats.js`, `chartScale.js`) and are tested
+  without rendering.
 - No new dependency without a reason recorded in `docs/decisions.md`.
 - Migrations 0001 to 0003 came with the template; add new ones, do not edit.
 - A changed decision means an updated `docs/decisions.md` in the same commit.

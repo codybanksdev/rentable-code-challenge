@@ -6,7 +6,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 import requests
@@ -108,7 +108,8 @@ def parse_ledger_entry(entry):
         description = entry.get('description') or ''
         return {
             'pms_id': str(pms_id),
-            'date': date.fromisoformat(entry['date']),
+            # strptime, not date.fromisoformat, which also accepts 20230105.
+            'date': datetime.strptime(entry['date'], '%Y-%m-%d').date(),
             'description': description,
             'type': entry_type,
             'amount': amount.quantize(CENT),

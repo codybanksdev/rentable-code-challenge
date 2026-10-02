@@ -58,7 +58,9 @@ def test_entries_are_ordered_by_date_then_numeric_pms_id():
     assert [e.transaction.pms_id for e in ledger.entries] == ['11', '9', '10']
 
 
-def test_tenant_with_no_transactions_has_a_zero_balance():
+def test_build_ledger_for_a_tenant_with_no_transactions_is_empty_and_zero():
+    # build_ledger always returns a number. Showing "no balance" for a tenant
+    # with nothing on file is the serializer's and the UI's job.
     ledger = build_ledger(Tenant.objects.create(name='Alice'))
 
     assert ledger.entries == []
@@ -226,11 +228,11 @@ def test_ledger_csv_matches_the_ledger():
     assert rows == [
         ['Date', 'Description', 'Type', 'Category', 'Charge', 'Payment', 'Balance', 'PMS transaction id'],
         ['2023-01-05', 'Opening balance', '', '', '', '', '1500.00', ''],
-        ['2023-01-05', 'Rent Payment, partial', 'payment', 'Rent and fees', '', '1000.00', '500.00', '2'],
+        ['2023-01-05', 'Rent Payment, partial', 'Payment', 'Rent and fees', '', '1000.00', '500.00', '2'],
         # A description that looks like a formula is exported as text.
-        ['2023-02-01', "'=SUM(A1:A9)", 'charge', 'Rent and fees', '-80.00', '', '420.00', '3'],
+        ['2023-02-01', "'=SUM(A1:A9)", 'Charge', 'Rent and fees', '-80.00', '', '420.00', '3'],
         # So is a PMS id that does, and text that hides the prefix behind spaces.
-        ['2023-02-02', "'  +cmd", 'charge', 'Rent and fees', '5.00', '', '425.00', "'=1+1"],
+        ['2023-02-02', "'  +cmd", 'Charge', 'Rent and fees', '5.00', '', '425.00', "'=1+1"],
     ]
 
 

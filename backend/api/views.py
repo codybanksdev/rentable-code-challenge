@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from django.http import HttpResponse
@@ -16,6 +17,8 @@ from api.services.ledger_csv import ledger_csv_filename, write_ledger_csv
 from api.services.reports import monthly_activity, roll_forward, write_roll_forward_csv
 
 # Create your views here.
+
+logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
 def welcome_message(request):
@@ -77,6 +80,11 @@ def tenant_ledger_csv(request, tenant_id):
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{ledger_csv_filename(ledger)}"'
     write_ledger_csv(ledger, response)
+    # Financial data left the application: record whose, and which period.
+    logger.info('ledger.exported', extra={
+        'tenant_id': ledger.tenant.pk, 'pms_tenant_id': ledger.tenant.pms_tenant_id,
+        'start': ledger.start, 'end': ledger.end, 'entries': len(ledger.entries),
+    })
     return response
 
 @api_view(['GET'])
@@ -124,7 +132,11 @@ def roll_forward_csv(request):
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     period = f"{start or 'start'}-to-{end or 'latest'}"
     response['Content-Disposition'] = f'attachment; filename="roll-forward-{period}.csv"'
-    write_roll_forward_csv(roll_forward(start, end), response)
+    statement = roll_forward(start, end)
+    write_roll_forward_csv(statement, response)
+    logger.info('roll_forward.exported', extra={
+        'start': start, 'end': end, 'tenants': len(statement['rows']),
+    })
     return response
 
 @api_view(['GET', 'POST'])
@@ -135,7 +147,8 @@ def label_list(request):
     if request.method == 'POST':
         serializer = LabelSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        label = serializer.save()
+        logger.info('label.created', extra={'label_id': label.pk, 'label': label.name})
         return Response(serializer.data, status=201)
     return Response(LabelSerializer(Label.objects.all(), many=True).data)
 
@@ -147,5 +160,10 @@ def tenant_labels(request, tenant_id):
     tenant = get_object_or_404(Tenant, pk=tenant_id)
     serializer = TenantLabelsSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    tenant.labels.set(serializer.validated_data['label_ids'])
+    labels = serializer.validated_data['label_ids']
+    tenant.labels.set(labels)
+    # The one write the API allows on a tenant, so it leaves a trace.
+    logger.info('tenant.labels_changed', extra={
+        'tenant_id': tenant.pk, 'labels': sorted(label.name for label in labels),
+    })
     return Response(LabelSerializer(tenant.labels.all(), many=True).data)

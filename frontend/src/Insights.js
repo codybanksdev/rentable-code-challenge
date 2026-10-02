@@ -146,6 +146,8 @@ function RollForward({ statement, query, onSelect }) {
                 Opening balance + net charges − net payments = closing balance, for
                 {statement.start ? ` ${formatDate(statement.start)}` : ' the first transaction'} to
                 {statement.end ? ` ${formatDate(statement.end)}` : ' the latest'}.
+                The closing total is net of tenants in credit, so it equals total
+                outstanding less credits held.
             </p>
             {exportError && <p role="alert">Export failed. {exportError.message}</p>}
             {rows.length === 0 ? <p>No tenants had transactions on or before the end of this period.</p> : (
@@ -181,7 +183,7 @@ function RollForward({ statement, query, onSelect }) {
                         </tbody>
                         <tfoot>
                             <tr>
-                                <th scope="row" colSpan={3}>Total, {rows.length} tenants</th>
+                                <th scope="row" colSpan={3}>Total, {rows.length} {rows.length === 1 ? 'tenant' : 'tenants'}</th>
                                 <td className="money">{formatMoney(totals.opening)}</td>
                                 <td className="money">{formatMoney(totals.charges)}</td>
                                 <td className="money">{formatMoney(totals.payments)}</td>
@@ -273,17 +275,17 @@ function Insights() {
                     detail={`${summary.owingCount} tenants with a balance due`}
                 />
                 <StatTile
-                    label="Credits held"
+                    label={`Credits held, ${when}`}
                     value={formatMoney(Math.abs(summary.credit))}
                     detail={`${summary.creditCount} tenants with a credit balance`}
                 />
                 <StatTile
-                    label="Deposits held"
+                    label={`Deposits held, ${when}`}
                     value={formatMoney(summary.depositsHeld)}
                     detail={`for ${summary.depositCount} tenants; owed back to them`}
                 />
                 <StatTile
-                    label="Settled"
+                    label={`Settled, ${when}`}
                     value={summary.settledCount}
                     detail="tenants with a $0.00 balance"
                 />
@@ -304,7 +306,9 @@ function Insights() {
                 emptyText="No tenant has a balance due."
                 onSelect={setLedgerTenant}
             />
-            {ledgerTenant && <TenantLedger tenant={ledgerTenant} onClose={closeLedger} />}
+            {/* Opened for the period on screen, so the ledger's closing balance
+                is the one in the row that was clicked. */}
+            {ledgerTenant && <TenantLedger tenant={ledgerTenant} onClose={closeLedger} initialRange={range} />}
         </div>
     );
 }

@@ -260,8 +260,8 @@ test('Export CSV downloads the ledger that is on screen', async ({ page }) => {
     expect(lines).toEqual([
         'Date,Description,Type,Category,Charge,Payment,Balance,PMS transaction id',
         '2023-03-01,Opening balance,,,,,20.00,',
-        '2023-03-01,Rent Charge - March,charge,Rent and fees,1300.00,,1320.00,30',
-        '2023-03-05,Utility Credit,charge,Rent and fees,-80.00,,1240.00,20',
+        '2023-03-01,Rent Charge - March,Charge,Rent and fees,1300.00,,1320.00,30',
+        '2023-03-05,Utility Credit,Charge,Rent and fees,-80.00,,1240.00,20',
     ]);
 });
 
@@ -298,7 +298,7 @@ test('Insights totals the deposits held', async ({ page }) => {
     await page.getByRole('tab', { name: 'Insights' }).click();
 
     // 1,000 + 900 + 800 + 1,150 + 600 for the five PMS tenants.
-    const tile = page.locator('.stat-tile').filter({ hasText: 'Deposits held' });
+    const tile = page.locator('.stat-tile').filter({ hasText: 'Deposits held, today' });
     await expect(tile).toContainText('$4,450.00');
     await expect(tile).toContainText('for 5 tenants');
 });
@@ -342,10 +342,12 @@ test('the roll-forward ties to the total outstanding, for all time and for a per
     const tile = page.locator('.stat-tile').first();
     await expect(tile).toContainText('Total outstanding, as of 02/28/2023');
     await expect(statement).toContainText('02/01/2023 to 02/28/2023.');
-    // Two different queries must agree: the closing total of the statement
-    // and the sum of every tenant's balance as of the same day.
-    const outstanding = (await tile.locator('.stat-value').textContent()).trim();
-    await expect(totals.nth(3)).toHaveText(outstanding);
+    // Two different queries must agree. The closing total is net of tenants
+    // in credit, so it is total outstanding less credits held.
+    const dollars = async locator => Number((await locator.textContent()).replace(/[$,]/g, ''));
+    const outstanding = await dollars(tile.locator('.stat-value'));
+    const credits = await dollars(page.locator('.stat-tile').filter({ hasText: 'Credits held' }).locator('.stat-value'));
+    await expect.poll(() => dollars(totals.nth(3))).toBe(outstanding - credits);
     // Daisy carried $20.00 into February and it was still $20.00 at the end.
     const daisy = statement.locator('tbody tr').filter({ hasText: 'Daisy Ridley' }).locator('td');
     await expect(daisy.nth(3)).toHaveText('$20.00');

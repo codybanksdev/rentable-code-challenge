@@ -84,8 +84,8 @@ test('the Insights tab shows portfolio totals and charts', async () => {
     expect(await screen.findByText('Total outstanding, today')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Insights' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Total outstanding, today').nextSibling).toHaveTextContent('$2,425.00');
-    expect(screen.getByText('Credits held').nextSibling).toHaveTextContent('$550.00');
-    expect(screen.getByText('Deposits held').nextSibling).toHaveTextContent('$1,900.00');
+    expect(screen.getByText('Credits held, today').nextSibling).toHaveTextContent('$550.00');
+    expect(screen.getByText('Deposits held, today').nextSibling).toHaveTextContent('$1,900.00');
 
     const prefix = screen.getByRole('region', { name: 'Outstanding balance by unit prefix, today' });
     expect(within(prefix).getAllByRole('listitem').map(item => item.textContent)).toEqual(['A$0.00', 'B$2,425.00']);
@@ -114,7 +114,7 @@ test('the roll-forward lists each tenant and ends with control totals', async ()
         '3ZedB1$0.00$450.00$1,000.00($550.00)',
         'Total, 2 tenants$0.00$4,475.00$2,600.00$1,875.00',
     ]);
-    expect(within(section).getByText(/the first transaction to the latest\.$/)).toBeInTheDocument();
+    expect(within(section).getByText(/the first transaction to the latest\./)).toBeInTheDocument();
 
     downloadFile.mockResolvedValue();
     userEvent.click(within(section).getByRole('button', { name: 'Export CSV' }));
@@ -130,12 +130,15 @@ test('the date filter narrows every figure to the period and exports the same pe
     // Balances are as of the end date; the statement and series cover the period.
     expect(await screen.findByText('Total outstanding, as of 01/31/2023')).toBeInTheDocument();
     expect(screen.getByText('Total outstanding, as of 01/31/2023').nextSibling).toHaveTextContent('$750.00');
+    // Every standing figure says which day it is for.
+    expect(screen.getByText('Credits held, as of 01/31/2023')).toBeInTheDocument();
+    expect(screen.getByText('Deposits held, as of 01/31/2023')).toBeInTheDocument();
     const section = screen.getByRole('region', { name: 'Receivable roll-forward' });
     expect(rowTexts(section)).toEqual([
         '2BobB205$250.00$1,500.00$1,000.00$750.00',
-        'Total, 1 tenants$250.00$1,500.00$1,000.00$750.00',
+        'Total, 1 tenant$250.00$1,500.00$1,000.00$750.00',
     ]);
-    expect(within(section).getByText(/01\/01\/2023 to 01\/31\/2023\.$/)).toBeInTheDocument();
+    expect(within(section).getByText(/01\/01\/2023 to 01\/31\/2023\./)).toBeInTheDocument();
     expect(rowTexts(screen.getByRole('region', { name: 'Monthly figures' }))).toHaveLength(1);
 
     downloadFile.mockResolvedValue();
@@ -188,4 +191,22 @@ test('the roll-forward sorts by any column and keeps the totals row last', async
     userEvent.click(within(section).getByRole('button', { name: /^Closing/ }));
     await waitFor(() => expect(names()).toEqual(['Bob', 'Zed', 'Tot']));
     expect(within(section).getByRole('columnheader', { name: /^Closing/ })).toHaveAttribute('aria-sort', 'descending');
+});
+
+test('a ledger opened from the roll-forward covers the same period', async () => {
+    await openInsights();
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2023-01-01' } });
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2023-01-31' } });
+    await screen.findByText('Total outstanding, as of 01/31/2023');
+    routes['/api/tenants/2/ledger/?start=2023-01-01&end=2023-01-31'] = {
+        ...routes['/api/tenants/2/ledger/'], start: '2023-01-01', end: '2023-01-31', opening_balance: '250.00', balance: '750.00',
+    };
+
+    const section = screen.getByRole('region', { name: 'Receivable roll-forward' });
+    userEvent.click(within(section).getByRole('button', { name: 'View ledger for Bob' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('Balance as of 01/31/2023')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('From')).toHaveValue('2023-01-01');
+    expect(requested).toContain('/api/tenants/2/ledger/?start=2023-01-01&end=2023-01-31');
 });

@@ -22,7 +22,6 @@ writes data.
 - [8. Authentication, roles and customer scoping](#8-authentication-roles-and-customer-scoping)
 - [9. Scale](#9-scale)
 - [10. Label rules and history](#10-label-rules-and-history)
-- [11. Tracing](#11-tracing)
 
 ## 1. Record transactions here
 
@@ -160,12 +159,3 @@ payments. And a record of who labelled a tenant, and when.
 **What it takes.** Labels are manual today. A rule would run after each
 import and add or clear a label, marked as automatic so a person's choice is
 never silently overridden.
-
-## 11. Tracing
-
-**What it enables.** Following one request or one import across services.
-
-**Why not yet.** There is one outbound call and one database. The durations
-that matter are already fields on the log events. This becomes worth adding
-when a second service, a queue or a scheduled worker exists to correlate
-with.

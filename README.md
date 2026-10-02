@@ -6,6 +6,7 @@
         * [API Spec](#api-spec)
 * [Getting Started](#getting-started)
     * [Loading the ledgers](#loading-the-ledgers)
+    * [Logs](#logs)
     * [Django admin](#django-admin)
     * [Running the tests](#running-the-tests)
     * [Solution notes](#solution-notes)
@@ -55,28 +56,30 @@ It is safe to run again at any time. Useful options:
 * `--dry-run` reports what would change and writes nothing.
 * `--source api/tests/fixtures/pms_tenants_sample.json` imports a saved PMS response instead of calling the API.
 
-Set `LOG_FORMAT=json` to get the import's log events as one JSON object per line.
+### Logs
+
+The backend logs named events as one JSON object per line: one `api.request` for every API call (method, path, status, duration), the import's fetch and summary, and an event for each export and label change. Set `LOG_FORMAT=text` for a plain readable line instead, or `LOG_LEVEL=WARNING` to see only problems.
 
 ### Django admin
 
 The tenants, transactions and labels are registered in the Django admin at
 [`http://127.0.0.1:8009/admin/`](http://127.0.0.1:8009/admin/), which is a
 quick way to inspect what an import wrote: filter transactions by type,
-category or "removed from the PMS", or search by description. It needs a
-login, which the template does not create:
+category or "removed from the PMS", or search by description.
 
-```bash
-cd backend && python manage.py createsuperuser
-```
+It opens without a login. That is a convenience for reviewing this project
+locally, it only works while `DEBUG` is on, and each such visit is logged as
+`admin.auto_login`. Set `ADMIN_AUTO_LOGIN=0` to get the normal login page
+back, then create an account with `python manage.py createsuperuser`.
 
 ### Running the tests
 
 ```bash
-cd backend && pytest
+cd backend && python -m pytest
 ```
 
 ```bash
-cd frontend && npm test
+cd frontend && npm test -- --watchAll=false
 ```
 
 The end-to-end suite starts its own backend and frontend on ports 8009 and

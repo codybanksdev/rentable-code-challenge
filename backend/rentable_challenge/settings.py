@@ -44,12 +44,14 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'api.middleware.ApiRequestLogMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'api.middleware.DevAdminAutoLoginMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -132,9 +134,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3009",
 ]
 
-# Application logs. LOG_FORMAT=json gives one JSON object per line for a log
-# pipeline; the default is a readable line for local work. LOG_LEVEL=WARNING
-# silences the per-request and per-import events.
+# The Django admin opens without a login, as a convenience for reviewing this
+# project locally. It is tied to DEBUG so it cannot be on in a deployment, and
+# ADMIN_AUTO_LOGIN=0 turns it off.
+ADMIN_AUTO_LOGIN = DEBUG and os.environ.get('ADMIN_AUTO_LOGIN', '1') == '1'
+
+# Application logs: one JSON object per line, ready for a log pipeline.
+# LOG_FORMAT=text prints the same events as a readable line instead, and
+# LOG_LEVEL=WARNING silences the per-request and per-import events.
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -145,7 +152,7 @@ LOGGING = {
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'json' if os.environ.get('LOG_FORMAT') == 'json' else 'text',
+            'formatter': 'text' if os.environ.get('LOG_FORMAT') == 'text' else 'json',
         },
     },
     'loggers': {
