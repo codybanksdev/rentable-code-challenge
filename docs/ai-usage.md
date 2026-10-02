@@ -3,6 +3,12 @@
 The README says AI tooling is expected and that the candidate owns every
 line. This is what that looked like here.
 
+## Contents
+
+- [Tools](#tools)
+- [What was checked rather than trusted](#what-was-checked-rather-than-trusted)
+- [Mistakes the checks caught](#mistakes-the-checks-caught)
+
 ## Tools
 
 - **Claude Code** wrote most of the code, tests and documents in this repo,

@@ -5,6 +5,9 @@
     * [Simulated PMS API](#simulated-pms-api)
         * [API Spec](#api-spec)
 * [Getting Started](#getting-started)
+    * [Loading the ledgers](#loading-the-ledgers)
+    * [Running the tests](#running-the-tests)
+    * [Solution notes](#solution-notes)
 * [The Challenge](#the-challenge)
 * [How to Submit](#how-to-submit)
 * [FAQ](#faq)
@@ -80,7 +83,7 @@ What was built, in the order an accountant would use it:
 * **Insights**: total outstanding, deposits held, a receivable roll-forward statement with control totals and CSV export, and monthly charts, all for a chosen date range.
 * **Labels** for marking tenants ("At risk", "Requires follow up", "Defaulting", or your own).
 
-Start with `docs/decisions.md`:
+The documents are indexed in [`docs/README.md`](docs/README.md). Start with `docs/decisions.md`:
 
 * [`docs/decisions.md`](docs/decisions.md): what was wrong with the original code, what changed, and why.
 * [`docs/flow.md`](docs/flow.md): how data moves from the PMS to the ledger on screen, with diagrams.

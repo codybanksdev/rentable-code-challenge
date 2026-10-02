@@ -4,6 +4,13 @@ Two flows meet in the local database. The **import** copies tenants and their
 ledgers from the PMS into SQLite. The **read path** serves that copy to the
 browser. The PMS is never called while a user is looking at a ledger.
 
+## Contents
+
+- [Import: PMS to local database](#import-pms-to-local-database)
+- [Read path: View Ledger](#read-path-view-ledger)
+- [Data model](#data-model)
+- [How the balance is computed](#how-the-balance-is-computed)
+
 ## Import: PMS to local database
 
 Run with `python manage.py import_transactions` from `backend/`.

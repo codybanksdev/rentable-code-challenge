@@ -29,6 +29,12 @@ curl -sS 'https://kpsaflrfjmhwomxiqrtiplvqem0hfmec.lambda-url.us-east-2.on.aws/a
 | Security deposit entries | 200 charges and 200 payments, 208,250 each | `jq '[.[].ledger[] \| select(.description \| test("deposit"; "i"))] \| group_by(.description) \| map({d: .[0].description, n: length, total: (map(.amount) \| add)})' pms.json` |
 | Naive sum of amounts, ignoring type | 5,198,353 | `jq '[.[].ledger[].amount] \| add' pms.json` |
 
+## Contents
+
+- [What the negative amounts are](#what-the-negative-amounts-are)
+- [Local tenants against PMS tenants](#local-tenants-against-pms-tenants)
+- [How the API behaves](#how-the-api-behaves)
+
 ## What the negative amounts are
 
 Negative charges are credits. Every one has one of five descriptions:

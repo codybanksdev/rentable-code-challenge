@@ -8,6 +8,47 @@ transactions and the balance, and reconcile against their books. Everything
 here is judged against that: a number on screen has to be one an accountant
 can trust and trace.
 
+## Contents
+
+- [What the PMS data looks like](#what-the-pms-data-looks-like)
+- [Defects in the original code](#defects-in-the-original-code)
+  - [1. The import never requested ledgers](#1-the-import-never-requested-ledgers)
+  - [2. PMS tenant ids were compared to local primary keys](#2-pms-tenant-ids-were-compared-to-local-primary-keys)
+  - [3. The transaction type was thrown away](#3-the-transaction-type-was-thrown-away)
+  - [4. PMS transaction ids were written into the local primary key](#4-pms-transaction-ids-were-written-into-the-local-primary-key)
+  - [5. No ordering](#5-no-ordering)
+  - [6. Failures looked like success](#6-failures-looked-like-success)
+  - [7. Smaller things](#7-smaller-things)
+- [Decisions](#decisions)
+  - [Balance = charges minus payments, with the PMS sign kept](#balance--charges-minus-payments-with-the-pms-sign-kept)
+  - [The balance is derived, never stored](#the-balance-is-derived-never-stored)
+  - [The running balance is computed in Python, on the server](#the-running-balance-is-computed-in-python-on-the-server)
+  - [The import brings in every PMS tenant](#the-import-brings-in-every-pms-tenant)
+  - [Tenants are matched on the PMS id only, never on a name](#tenants-are-matched-on-the-pms-id-only-never-on-a-name)
+  - [Transactions the PMS no longer has are marked removed, not deleted](#transactions-the-pms-no-longer-has-are-marked-removed-not-deleted)
+  - [One bad entry holds back that tenant's whole ledger](#one-bad-entry-holds-back-that-tenants-whole-ledger)
+  - [Existing transactions are deleted by the migration](#existing-transactions-are-deleted-by-the-migration)
+  - [The import can read a saved response (`--source`)](#the-import-can-read-a-saved-response---source)
+  - [Security deposits are reported apart from what the tenant owes](#security-deposits-are-reported-apart-from-what-the-tenant-owes)
+  - [Charges and payments are shown net, and labelled net](#charges-and-payments-are-shown-net-and-labelled-net)
+  - ["Unit prefix", not "building"](#unit-prefix-not-building)
+  - [A tenant with nothing on file has no balance](#a-tenant-with-nothing-on-file-has-no-balance)
+  - [The tenant list shows the PMS id](#the-tenant-list-shows-the-pms-id)
+  - [Each ledger records when it was synced](#each-ledger-records-when-it-was-synced)
+  - [A date range carries an opening balance](#a-date-range-carries-an-opening-balance)
+  - [CSV export is fetched, not linked](#csv-export-is-fetched-not-linked)
+  - [Labels are local, with three defaults](#labels-are-local-with-three-defaults)
+  - [Structured logs, without a logging library](#structured-logs-without-a-logging-library)
+  - [Balances can be taken as of any date](#balances-can-be-taken-as-of-any-date)
+  - [The roll-forward statement](#the-roll-forward-statement)
+  - [Insights follows one date range](#insights-follows-one-date-range)
+  - [The ledger opens as a dialog, and stays in date order](#the-ledger-opens-as-a-dialog-and-stays-in-date-order)
+  - [Sorting and filtering happen in the browser](#sorting-and-filtering-happen-in-the-browser)
+  - [Charts are drawn without a chart library](#charts-are-drawn-without-a-chart-library)
+  - [Tests](#tests)
+- [Not done, and why](#not-done-and-why)
+- [Questions for the customer and the PMS owner](#questions-for-the-customer-and-the-pms-owner)
+
 ## What the PMS data looks like
 
 Measured from the live API (`GET /tenants/?includeLedgers=true`):

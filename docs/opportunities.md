@@ -10,6 +10,20 @@ One item is not optional: authentication and customer scoping (8) comes
 before any real customer sees this, and before anything else here that
 writes data.
 
+## Contents
+
+- [1. Record transactions here](#1-record-transactions-here)
+- [2. Reconciliation status per tenant and per period](#2-reconciliation-status-per-tenant-and-per-period)
+- [3. Changes since the last import](#3-changes-since-the-last-import)
+- [4. Aging buckets](#4-aging-buckets)
+- [5. Scheduled sync with alerting](#5-scheduled-sync-with-alerting)
+- [6. Export in the accounting system's own layout](#6-export-in-the-accounting-systems-own-layout)
+- [7. A fuller deposit ledger](#7-a-fuller-deposit-ledger)
+- [8. Authentication, roles and customer scoping](#8-authentication-roles-and-customer-scoping)
+- [9. Scale](#9-scale)
+- [10. Label rules and history](#10-label-rules-and-history)
+- [11. Tracing](#11-tracing)
+
 ## 1. Record transactions here
 
 **What it enables.** An accountant applies a courtesy credit, writes off a
