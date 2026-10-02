@@ -467,12 +467,16 @@
   letter-spacing: 0.02em;
 }
 
-/* Rentable's green, from rentable.com. */
+/* The house from Rentable's logo. The image file also contains the wordmark
+   in dark text, which would not show on the navy header, so only the house
+   (its left 92px of 428) is shown and the name is set as text beside it. */
 .brand-mark {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background-color: #00e499;
+  width: 23px;
+  height: 24px;
+  background-image: url("./rentable-logo.png");
+  background-size: auto 100%;
+  background-repeat: no-repeat;
+  background-position: left center;
 }
 
 .App-header-minimal h1 {

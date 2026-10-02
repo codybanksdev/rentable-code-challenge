@@ -59,7 +59,7 @@ function TenantList() {
 
     return (
         <div className="tenant-list">
-            <h2>Tenants</h2>
+            <h2 className="visually-hidden">Tenants</h2>
             <p className="sync-status">
                 {lastSynced
                     ? `Ledgers last synced from the PMS: ${formatDateTime(lastSynced)}`
