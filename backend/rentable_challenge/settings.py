@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -43,12 +44,14 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'api.middleware.ApiRequestLogMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'api.middleware.DevAdminAutoLoginMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -80,7 +83,8 @@ WSGI_APPLICATION = 'rentable_challenge.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        # DJANGO_DB_PATH lets the end-to-end suite use its own database.
+        'NAME': os.environ.get('DJANGO_DB_PATH', BASE_DIR / 'db.sqlite3'),
     }
 }
 
@@ -127,5 +131,35 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-] 
+    "http://localhost:3009",
+]
+
+# The Django admin opens without a login, as a convenience for reviewing this
+# project locally. It is tied to DEBUG so it cannot be on in a deployment, and
+# ADMIN_AUTO_LOGIN=0 turns it off.
+ADMIN_AUTO_LOGIN = DEBUG and os.environ.get('ADMIN_AUTO_LOGIN', '1') == '1'
+
+# Application logs: one JSON object per line, ready for a log pipeline.
+# LOG_FORMAT=text prints the same events as a readable line instead, and
+# LOG_LEVEL=WARNING silences the per-request and per-import events.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'json': {'()': 'api.logging.JsonFormatter'},
+        'text': {'()': 'api.logging.KeyValueFormatter'},
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'text' if os.environ.get('LOG_FORMAT') == 'text' else 'json',
+        },
+    },
+    'loggers': {
+        'api': {
+            'handlers': ['console'],
+            'level': os.environ.get('LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+    },
+}

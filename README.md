@@ -5,6 +5,11 @@
     * [Simulated PMS API](#simulated-pms-api)
         * [API Spec](#api-spec)
 * [Getting Started](#getting-started)
+    * [Loading the ledgers](#loading-the-ledgers)
+    * [Logs](#logs)
+    * [Django admin](#django-admin)
+    * [Running the tests](#running-the-tests)
+    * [Solution notes](#solution-notes)
 * [The Challenge](#the-challenge)
 * [How to Submit](#how-to-submit)
 * [FAQ](#faq)
@@ -34,7 +39,99 @@ Tenant and transaction data comes from a simulated external Property Management 
 
 This repo includes a [Dev Container](https://containers.dev/) config (`.devcontainer/`). It's the quickest way to get running: the container installs dependencies, migrates, and seeds the database for you. Not using Dev Containers? `.devcontainer/post_create.sh` shows what you'd need to do yourself.
 
-Once set up, run `./start.sh` from the project root. The backend runs at [`http://127.0.0.1:8009/`](http://127.0.0.1:8009/) and the frontend at [`http://localhost:3009/`](http://localhost:3009/).
+Once set up, run `./start.sh` from the project root. The backend runs at [`http://127.0.0.1:8009/`](http://127.0.0.1:8009/) and the frontend at [`http://localhost:3009/`](http://localhost:3009/). The [Django admin](#django-admin) is at [`http://127.0.0.1:8009/admin/`](http://127.0.0.1:8009/admin/).
+
+### Loading the ledgers
+
+The dev container seeds three tenants but does not import transactions. To
+load all tenants and their ledgers from the PMS (200 tenants, 4,424
+transactions), run:
+
+```bash
+cd backend && python manage.py import_transactions
+```
+
+It is safe to run again at any time. Useful options:
+
+* `--dry-run` reports what would change and writes nothing.
+* `--source api/tests/fixtures/pms_tenants_sample.json` imports a saved PMS response instead of calling the API.
+
+### Logs
+
+The backend logs named events as one JSON object per line: one `api.request` for every API call (method, path, status, duration), the import's fetch and summary, and an event for each export and label change. Set `LOG_FORMAT=text` for a plain readable line instead, or `LOG_LEVEL=WARNING` to see only problems.
+
+### Django admin
+
+The tenants, transactions and labels are registered in the Django admin at
+[`http://127.0.0.1:8009/admin/`](http://127.0.0.1:8009/admin/), which is a
+quick way to inspect what an import wrote: filter transactions by type,
+category or "removed from the PMS", or search by description.
+
+It opens without a login. That is a convenience for reviewing this project
+locally, it only works while `DEBUG` is on, and each such visit is logged as
+`admin.auto_login`. Set `ADMIN_AUTO_LOGIN=0` to get the normal login page
+back, then create an account with `python manage.py createsuperuser`.
+
+### Running the tests
+
+```bash
+cd backend && python -m pytest
+```
+
+```bash
+cd frontend && npm test -- --watchAll=false
+```
+
+The end-to-end suite starts its own backend and frontend on ports 8009 and
+3009 with a throwaway database, so stop `./start.sh` first:
+
+```bash
+cd e2e && npm install && npx playwright install chromium && npx playwright test
+```
+
+### Solution notes
+
+What was built, in the order an accountant would use it:
+
+* **Tenant list** with each tenant's balance, PMS id and labels. Sort by any column; filter by unit prefix, label and balance range; show balances as of a past date.
+* **View Ledger** opens that tenant's transactions, oldest first, with a running balance, the balance split into rent and fees owed and deposit held, a balance-over-time chart, a date range with an opening balance, and CSV export.
+* **Import** (`import_transactions`) that matches the PMS spec: it requests ledgers, keys on PMS ids, keeps the transaction type, validates every entry, and is safe to rerun.
+* **Insights**: total outstanding, deposits held, a receivable roll-forward statement with control totals and CSV export, and monthly charts, all for a chosen date range.
+* **Labels** for marking tenants ("At risk", "Requires follow up", "Defaulting", or your own).
+
+A tenant's ledger, with the balance split into what is owed and the deposit held:
+
+![Ledger dialog showing totals, deposit held, a balance-over-time chart and the transactions](docs/screenshots/ledger.png)
+
+The tenant list, sorted by balance, with labels:
+
+![Tenant list with PMS id, unit, balance and labels](docs/screenshots/tenant-list.png)
+
+Insights for a chosen period, with the receivable roll-forward:
+
+![Insights tiles and the roll-forward statement for January to June 2023](docs/screenshots/insights-roll-forward.png)
+
+![Monthly net charges against net payments, and the total receivable at month end](docs/screenshots/insights-charts.png)
+
+Tenants grouped by label:
+
+![Labels tab listing tenants under At risk, Defaulting and Requires follow up](docs/screenshots/labels.png)
+
+The write-up is in [`docs/`](docs/README.md): what was wrong with the original code and every decision made about it ([`decisions.md`](docs/decisions.md), the one to start with), how the data flows, what the PMS data looks like, where this could go next, and how AI was used.
+
+API endpoints:
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/tenants/` | Tenants, each with its balance, deposit held and labels. Optional `as_of` (`YYYY-MM-DD`) gives balances at the close of that day. |
+| `GET /api/tenants/<id>/ledger/` | One tenant's transactions with a running balance and totals. Optional `start` and `end` (`YYYY-MM-DD`). |
+| `GET /api/tenants/<id>/ledger.csv` | The same ledger as a CSV download |
+| `PUT /api/tenants/<id>/labels/` | Replace a tenant's labels (`{"label_ids": [...]}`) |
+| `GET /api/labels/`, `POST /api/labels/` | List labels, or create one (`{"name", "color"}`) |
+| `GET /api/transactions/?tenant=<id>` | Raw transactions, optionally for one tenant |
+| `GET /api/reports/monthly-activity/` | Per month: net charges, net payments, returned payments, collection rate, receivable at month end. Optional `start` and `end`. |
+| `GET /api/reports/roll-forward/` | Per tenant for a period: opening, net charges, net payments, closing, with control totals. Optional `start` and `end`. |
+| `GET /api/reports/roll-forward.csv` | The same statement as a CSV download, ending in a totals row |
 
 ## The Challenge
 

@@ -2,30 +2,9 @@
   text-align: center;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
-}
-
 .App-header-minimal {
-  background-color: #282c34;
+  /* Rentable's navy, from rentable.com. */
+  background-color: #0e3263;
   padding: 20px;
   color: white;
   margin-bottom: 20px;
@@ -35,37 +14,602 @@
   padding: 20px;
 }
 
-.tenant-list table {
+.tenant-list table,
+.ledger table {
   width: 80%;
   margin: 20px auto;
   border-collapse: collapse;
 }
 
 .tenant-list th,
-.tenant-list td {
+.tenant-list td,
+.ledger th,
+.ledger td {
   border: 1px solid #ddd;
   padding: 8px;
   text-align: left;
 }
 
-.tenant-list th {
+.tenant-list th,
+.ledger th {
   background-color: #f2f2f2;
   color: #333;
 }
 
-.tenant-list tr:nth-child(even) {
+.tenant-list tr:nth-child(even),
+.ledger tr:nth-child(even) {
   background-color: #f9f9f9;
 }
 
-.App-link {
-  color: #61dafb;
+.money {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-} 
+.tenant-list th.money,
+.tenant-list td.money,
+.ledger th.money,
+.ledger td.money {
+  text-align: right;
+}
+
+.ledger-backdrop {
+  position: fixed;
+  /* Above the tenant table's sticky header (z-index 1). */
+  z-index: 10;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+
+.ledger {
+  background-color: white;
+  border-radius: 6px;
+  padding: 20px;
+  width: 100%;
+  max-width: 900px;
+  text-align: left;
+}
+
+.ledger-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ledger-header h2 {
+  margin: 0;
+}
+
+.ledger-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 20px 0 0;
+}
+
+.ledger-summary dt {
+  color: #555;
+  font-size: 0.85em;
+}
+
+.ledger-summary dd {
+  margin: 4px 0 0;
+  font-size: 1.25em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-balance dd {
+  font-weight: bold;
+}
+
+.ledger table {
+  width: 100%;
+}
+
+/* Sticky column headers. With border-collapse the cell borders scroll away
+   from a sticky cell, so the header draws its own bottom edge. */
+.tenant-list thead th,
+.ledger thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  box-shadow: inset 0 -1px 0 #ddd;
+}
+
+.sort-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: bold;
+  color: inherit;
+  cursor: pointer;
+}
+
+.tenant-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 16px;
+}
+
+.tenant-filters label {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  font-size: 0.85em;
+  gap: 4px;
+}
+
+.tenant-filters input {
+  width: 110px;
+}
+
+/* The ledger scrolls inside the dialog so its header and totals stay put. */
+.ledger-table-scroll {
+  max-height: 45vh;
+  overflow-y: auto;
+  margin-top: 20px;
+}
+
+.ledger-table-scroll table {
+  margin: 0;
+}
+
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tabs button {
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  padding: 6px 14px;
+  font: inherit;
+  color: #c9ccd1;
+  cursor: pointer;
+}
+
+.tabs button[aria-selected="true"] {
+  color: white;
+  border-bottom-color: #00e499;
+}
+
+.insights {
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.stat-tile {
+  /* Narrow enough that four tiles share one row at the page's full width. */
+  flex: 1 1 150px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
+.stat-label,
+.stat-detail {
+  color: #52514e;
+  font-size: 0.85em;
+}
+
+.stat-value {
+  font-size: 1.5em;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  margin: 4px 0;
+}
+
+.chart {
+  margin-top: 32px;
+}
+
+.chart h3 {
+  margin: 0 0 8px;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+  font-size: 0.85em;
+  color: #52514e;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+}
+
+.line-chart {
+  position: relative;
+}
+
+.line-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.grid-line {
+  stroke: #e6e5e1;
+  stroke-width: 1;
+}
+
+.crosshair {
+  stroke: #9a9994;
+  stroke-width: 1;
+}
+
+.axis-text {
+  font-size: 11px;
+  fill: #52514e;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.85em;
+  white-space: nowrap;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bar-list li {
+  display: grid;
+  grid-template-columns: minmax(40px, 220px) 1fr 100px;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 0;
+}
+
+.bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-track {
+  display: block;
+  height: 14px;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  min-width: 1px;
+  background-color: #2a78d6;
+  border-radius: 0 4px 4px 0;
+}
+
+.bar-label button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: #1c5cab;
+  text-decoration: underline;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-summary dd.ledger-summary-detail {
+  font-size: 0.8em;
+  font-weight: normal;
+  color: #52514e;
+}
+
+.balance-chart {
+  margin-top: 20px;
+}
+
+.balance-chart h3 {
+  margin: 0 0 4px;
+  font-size: 1em;
+}
+
+.zero-line {
+  stroke: #9a9994;
+  stroke-width: 1;
+}
+
+/* Read by screen readers, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sync-status,
+.ledger-meta {
+  color: #52514e;
+  font-size: 0.85em;
+}
+
+.ledger-meta {
+  margin: 4px 0 0;
+}
+
+.ledger h2:focus {
+  outline: none;
+}
+
+.ledger-controls,
+.new-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.ledger-controls label,
+.new-label label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85em;
+  gap: 4px;
+}
+
+.ledger-export {
+  margin-left: auto;
+}
+
+.opening-balance td {
+  font-style: italic;
+}
+
+.badge {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid #9a9994;
+  border-radius: 10px;
+  font-size: 0.75em;
+  color: #52514e;
+}
+
+.ledger-section {
+  margin-top: 16px;
+}
+
+.balance-chart svg {
+  cursor: crosshair;
+  user-select: none;
+}
+
+.chart-selection {
+  fill: #2a78d6;
+  opacity: 0.15;
+}
+
+.chart-hint {
+  margin: 2px 0 0;
+  font-size: 0.8em;
+  color: #52514e;
+}
+
+.ledger-section table {
+  margin: 8px 0 0;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+}
+
+/* The house from Rentable's logo. The image file also contains the wordmark
+   in dark text, which would not show on the navy header, so only the house
+   (its left 92px of 428) is shown and the name is set as text beside it. */
+.brand-mark {
+  width: 23px;
+  height: 24px;
+  background-image: url("./rentable-logo.png");
+  background-size: auto 100%;
+  background-repeat: no-repeat;
+  background-position: left center;
+}
+
+.App-header-minimal h1 {
+  margin: 4px 0 0;
+  font-size: 1.5em;
+}
+
+.label-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.8em;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-right: 6px;
+}
+
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: #1c5cab;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.label-editor {
+  max-width: 480px;
+}
+
+.label-options {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+}
+
+.label-options li {
+  padding: 4px 0;
+}
+
+.label-options input {
+  margin-right: 8px;
+}
+
+.label-editor-actions {
+  margin-top: 20px;
+  text-align: right;
+}
+
+.labels-tab {
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.labels-tab .tenant-filters {
+  justify-content: flex-start;
+}
+
+.label-group {
+  margin-top: 28px;
+}
+
+.label-group h3 {
+  margin: 0 0 8px;
+}
+
+.label-group-count {
+  font-size: 0.8em;
+  font-weight: normal;
+  color: #52514e;
+}
+
+.label-group table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.label-group th,
+.label-group td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.label-group th {
+  background-color: #f2f2f2;
+  color: #333;
+}
+
+.label-group th.money,
+.label-group td.money {
+  text-align: right;
+}
+
+.insight-filters {
+  justify-content: flex-start;
+  margin-bottom: 20px;
+}
+
+.as-of-note {
+  margin: 12px 0 0;
+  font-weight: bold;
+}
+
+.chart-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.chart-note {
+  margin: 0 0 8px;
+  font-size: 0.85em;
+  color: #52514e;
+}
+
+/* A long report scrolls inside its own box, under a sticky header, with the
+   totals row pinned to the bottom. */
+.report-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+}
+
+.report-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-scroll th,
+.report-scroll td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+
+.report-scroll th.money,
+.report-scroll td.money {
+  text-align: right;
+}
+
+.report-scroll thead th {
+  position: sticky;
+  top: 0;
+  background-color: #f2f2f2;
+  color: #333;
+}
+
+.report-scroll tfoot th,
+.report-scroll tfoot td {
+  position: sticky;
+  bottom: 0;
+  background-color: #f2f2f2;
+  font-weight: bold;
+  border-top: 2px solid #9a9994;
+}
